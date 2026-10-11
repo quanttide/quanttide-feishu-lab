@@ -1,0 +1,13 @@
+[
+  {
+    "message_id": "m-201",
+    "sender": "zhouyan@example.com",
+    "recipient": "",
+    "subject": "应聘数据工程师-周砚-安徽大学-可实习5个月",
+    "date": "2026-10-04",
+    "body": "您好，简历见附件（附件因垃圾邮件限制暂不可下载）。",
+    "attachments": [
+      "周砚-简历.txt"
+    ]
+  }
+]

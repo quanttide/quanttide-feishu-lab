@@ -1,0 +1,29 @@
+[
+  {
+    "message_id": "m-101",
+    "sender": "hr@quanttide.com",
+    "recipient": "linyizhou@example.com",
+    "subject": "量潮招聘 · 准入问卷",
+    "date": "2026-10-03",
+    "body": "请填写问卷：…",
+    "attachments": []
+  },
+  {
+    "message_id": "m-102",
+    "sender": "hr@quanttide.com",
+    "recipient": "suxiao@example.com",
+    "subject": "量潮招聘 · 准入问卷",
+    "date": "2026-10-04",
+    "body": "请填写问卷：…",
+    "attachments": []
+  },
+  {
+    "message_id": "m-103",
+    "sender": "hr@quanttide.com",
+    "recipient": "herui@example.com",
+    "subject": "量潮招聘 · 准入问卷",
+    "date": "2026-10-04",
+    "body": "请填写问卷：…",
+    "attachments": []
+  }
+]
