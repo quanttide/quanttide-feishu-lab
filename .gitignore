@@ -3,3 +3,5 @@
 # 夹具发信的输出，跑一次就生成一次，不入库
 fixtures/outbox/
 __pycache__/
+.venv/
+state/
