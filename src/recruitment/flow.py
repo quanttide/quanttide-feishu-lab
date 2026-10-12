@@ -1,4 +1,4 @@
-"""读流程定义：把 flows/*.yaml 读成结构，不给它任何平台与业务概念。"""
+"""读流程定义：把流程 YAML（tests/fixtures/flows/*.yaml）读成结构，不给它任何平台与业务概念。"""
 
 from __future__ import annotations
 
@@ -82,4 +82,4 @@ def load(path: str) -> Flow:
 
 
 def default_path(lab_root: str) -> str:
-    return os.path.join(lab_root, "flows", "recruitment.yaml")
+    return os.path.join(lab_root, "tests", "fixtures", "flows", "recruitment.yaml")

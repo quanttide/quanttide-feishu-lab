@@ -2,7 +2,7 @@
 
 夹具目录的形状：
 
-    fixtures/
+    tests/fixtures/
       mail/
         收件箱.json          每封：message_id / sender / subject / body / date / attachments
         已发送问卷.json

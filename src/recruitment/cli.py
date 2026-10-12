@@ -22,8 +22,8 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="recruitment", description="招聘流程调度器")
     p.add_argument("command", choices=["run", "status"])
     p.add_argument("--mock", action="store_true", help="走夹具，不打真飞书")
-    p.add_argument("--fixtures", default=os.path.join(LAB_ROOT, "fixtures"))
-    p.add_argument("--state", default=os.path.join(LAB_ROOT, "state", "recruitment.json"))
+    p.add_argument("--fixtures", default=os.path.join(LAB_ROOT, "tests", "fixtures"))
+    p.add_argument("--state", default=os.path.join(LAB_ROOT, "tests", "fixtures", "state", "recruitment.json"))
     p.add_argument("--flow", default=flow_mod.default_path(LAB_ROOT))
     p.add_argument("--drain", action="store_true", help="把能推的都推完（缺省只推一步）")
     return p

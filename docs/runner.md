@@ -1,12 +1,12 @@
 # 招聘流程调度器（设计）
 
-围绕 `flows/recruitment.yaml` 与本地已装的 `lark-cli`，做一个读 YAML、按状态机推进流程的程序，代替 `qtrecurit-cli` 里那些写死的命令。实验室验证时走 mock。
+围绕 `tests/fixtures/flows/recruitment.yaml` 与本地已装的 `lark-cli`，做一个读 YAML、按状态机推进流程的程序，代替 `qtrecurit-cli` 里那些写死的命令。实验室验证时走 mock。
 
 ## 一、要解决的问题
 
 `qtrecurit-cli` 把招聘流程的每一步写成了一个命令（同步邮箱、发问卷、发邀请、发考试），每个命令里硬编码了邮箱、文件夹、表列、模板。**流程等于命令的排列组合**——要调流程就得改代码。
 
-现在流程已经写成了数据（`flows/recruitment.yaml`），差一个**执行器**：它读那份 YAML，把「什么事件发生 → 做哪一步 → 怎么算过」跑起来。跑通之后，调流程就是改 YAML。
+现在流程已经写成了数据（`tests/fixtures/flows/recruitment.yaml`），差一个**执行器**：它读那份 YAML，把「什么事件发生 → 做哪一步 → 怎么算过」跑起来。跑通之后，调流程就是改 YAML。
 
 ## 二、第一道关口：触发要从「话」变成「条件」
 
@@ -46,11 +46,13 @@ YAML 里**不出现任何 lark-cli 命令**，只出现能力名。能力是流�
 
 **mock 就是这张表的第二列换成第三列**——换掉的是实现，不是流程。`--mock` 一开，同一份 YAML 用夹具跑；关掉，同一份 YAML 打真飞书。这也是为什么 YAML 里不能写命令：写了就没法换。
 
+mock 分两层，读同一批 `tests/fixtures/`，不互相取代：Python 层 `capabilities/mock.py` 直读夹具，给 runner 用；CLI 层 `packages/mock` 是个假 `lark-cli`——真实能力是子进程调 `lark-cli`，把它 PATH 到前面就能离线自测，真实能力代码一行不改。设计见 `packages/mock/README.md`。
+
 ## 四、状态落在哪
 
 流程要有「一个候选人现在在哪一格」的记录。三条规矩：
 
-1. **状态存在本地文件**（`state/recruitment.json`），一条候选人一条记录：当前状态、进入时间、走过的迁移。
+1. **状态存在本地文件**（`tests/fixtures/state/recruitment.json`），一条候选人一条记录：当前状态、进入时间、走过的迁移。
 2. **位置不进模型**：状态文件与夹具目录的位置都由启动参数给，缺省在当前工作目录下。同一份 YAML 在哪都能跑。
 3. **状态可重建**：能从飞书侧的原始数据（邮件、表记录、群成员）重放出来。本地状态是缓存，不是事实源——事实在飞书那边。
 
@@ -75,7 +77,7 @@ YAML 里**不出现任何 lark-cli 命令**，只出现能力名。能力是流�
 recruitment run      # 跑一轮（默认一步）
 recruitment status   # 打印所有候选人当前在哪一格
 recruitment replay   # 从飞书侧原始数据重建本地状态
-recruitment run --mock --fixtures fixtures/   # 实验室：走夹具
+recruitment run --mock --fixtures tests/fixtures/   # 实验室：走夹具
 ```
 
 与 `qtcloud-work task` 的手感对齐（`--new` 开单、`--next` 走一步），因为它已经证明了这个形状对 AI 友好：每步有产物、每步留账、可中断可续跑。

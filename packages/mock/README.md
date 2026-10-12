@@ -1,0 +1,81 @@
+# packages/mock — lark-cli 的 mock
+
+假 `lark-cli`：读同一批 `tests/fixtures/`，按真 CLI 的信封回话，不打真飞书。
+
+## 为什么要有它
+
+能力层有两种实现（`src/recruitment/capabilities/`）：
+
+| 实现 | 形态 | 给谁用 | 现状 |
+| :-- | :-- | :-- | :-- |
+| Python 层 mock（`capabilities/mock.py`） | 能力接口直读夹具 | runner | 已跑通 |
+| 真实能力 | **子进程调 `lark-cli`** | runner | 未实现（真飞书侧 scope 未开通、要授权） |
+
+真实能力卡在「打真飞书」上，但「子进程调 CLI」这条路径本身可以先验：
+把本包的 `bin/lark-cli` 顶到 PATH 最前面遮蔽真 CLI，真实能力代码**一行不改**
+就能离线跑通。这也是 runner.md 判据「换实现不换流程」能在本地兑现的前提。
+
+两层 mock 并存，读同一批 `tests/fixtures/`，不互相取代。
+
+## 命令面
+
+只实现流程要用的五条（runner.md 第三节那张表的四类能力）：
+
+| 命令 | 读 / 写 | 关键 flags | `data` 负载 |
+| :-- | :-- | :-- | :-- |
+| `mail +triage` | `tests/fixtures/mail/<文件夹>.json` | `--filter`（folder/from/subject）、`--query`、`--max`、`--page-token`、`--format` | `messages[]` / `count` / `has_more` / `page_token` |
+| `mail +messages` | `mail/` + `outbox/` 按 message_id 找 | `--message-ids`、`--html` | `messages[]` / `total` / `unavailable_message_ids` |
+| `mail +send` | 写 `tests/fixtures/outbox/` | `--to`、`--subject`、`--body`、`--attach`、`--confirm-send` | 草稿模式 `draft_id`；发送 `message_id` / `thread_id` |
+| `base +record-list` | `tests/fixtures/survey.json` | `--base-token`、`--table-id`、`--filter-json`、`--field-id`、`--offset`、`--limit` | `items[]` / `total` / `has_more` |
+| `im +chat-members-list` | `tests/fixtures/group_members.json` | `--chat-id`、`--member-types` | `users[]` / `bots[]` / `truncations[]` |
+
+## 输出契约（照真 CLI）
+
+- 成功：`{"ok": true, "data": {...}}` → stdout，exit 0
+- 失败：`{"ok": false, "error": {type, subtype, message, hint?, param?}}` → **stderr，exit 2**
+- `--format`：`json` / `data` / `pretty` / `ndjson` / `table`（按命令的真 CLI 默认值，如 triage 默认 table、record-list 默认 markdown）；`--json` 是简写
+- `--jq <expr>`：走本机 `jq` 过滤输出；给了 `--jq` 一律按 json 走
+- `--dry-run`：回 argv 与夹具根，**不编 API 路径**
+- 未实现的域 / 命令 / flag：回同款 validation 错误——缺什么就是接真 CLI 时要补什么，不假装有
+
+依据：本机 `lark-cli` 实测（错误信封、exit 2、`--dry-run` 形状）＋
+`lark-cli skills read lark-mail` 的字段文档（triage / messages / send 的负载与字段名）。
+
+## 夹具映射
+
+| 命令 | 夹具 |
+| :-- | :-- |
+| `mail +triage --filter '{"folder":"收件箱"}'` | `tests/fixtures/mail/收件箱.json`（`inbox`→收件箱、`spam`→Spam 两个别名） |
+| `mail +messages` | 遍历 `mail/*.json` + `outbox/*.json` 按 `message_id` 找 |
+| `mail +send --confirm-send` | 写 `tests/fixtures/outbox/<message_id>.json`（message_id 与 Python 层 mock 同算法） |
+| `base +record-list` | `tests/fixtures/survey.json`，`--filter-json` 认 `email`/`submitted_at` 与中文别名 `邮箱`/`提交时间`，`answers` 里的键按列名查 |
+| `im +chat-members-list` | `tests/fixtures/group_members.json` |
+
+夹具目录默认取实验室根的 `tests/fixtures/`，环境变量 `LARK_MOCK_FIXTURES` 可换。
+
+## 怎么用
+
+```bash
+# 遮蔽真 CLI（哪个先在 PATH 里，哪个说了算）
+PATH=$PWD/packages/mock/bin:$PATH lark-cli mail +triage --format json
+
+# 自检：五条命令 + 错误面 + 信封，夹具拷到临时目录跑，不碰仓库
+python3 packages/mock/smoke.py
+```
+
+## 已知差距（接真 CLI 时要处理）
+
+| 差距 | 说明 |
+| :-- | :-- |
+| base / im 的 `data` 形状 | mail 三条对照过 skill 文档；base / im 是按飞书 API 通用形状近似——本机 lark-cli 缺 scope 打不出成功输出，接真时逐字段核 |
+| 群成员邮箱 | 真 CLI 回 `open_id`，mock 直接回邮箱（`member_id_type=email`）——真实能力要补一步 open_id → 邮箱解析 |
+| 草稿 | 真 CLI 存草稿可取回，mock 只回 `draft_id` 不落盘 |
+| 翻页游标 | mock 是按位置的 `list:<n>`，真 CLI 是服务端不透明游标——形状对齐、语义近似 |
+| 文件夹 | mock 按文件夹名找夹具文件；真 CLI 是 `folder` / `folder_id` 体系 |
+| 错误面 | 只有 validation 一类，不模拟授权失败、限流 |
+
+## 不做什么
+
+- 不模拟网络延迟、分页上限、`truncations[]`
+- 不真发邮件、不写真表——写只落到 `tests/fixtures/outbox/`
+- 不接 runner：runner 走 Python 层 mock；本包是给真实能力（子进程路径）预留的离线靶子

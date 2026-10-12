@@ -18,9 +18,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import recruitment.capabilities as cap  # noqa: E402
 
-FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures")
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fixtures")
 
-# 收集范围：收件箱 + 漂移的两个文件夹 + Spam（对齐 flows/recruitment.yaml 的收集节）
+# 收集范围：收件箱 + 漂移的两个文件夹 + Spam（对齐 tests/fixtures/flows/recruitment.yaml 的收集节）
 FOLDERS = ["收件箱", "已发送问卷", "沟通面试中", "Spam"]
 
 
@@ -54,7 +54,7 @@ def main() -> int:
     print(f"  调研表命中：{sorted(records)}")
     print(f"  群成员：{sorted(members)}")
     mid = c.send_mail("chenmo@example.com", "量潮招聘 · 准入问卷", "请填写问卷：…")
-    print(f"  发出一封（写进 fixtures/outbox/）：{mid}")
+    print(f"  发出一封（写进 tests/fixtures/outbox/）：{mid}")
 
     print("\n── 每人现在在哪一格（runner 的活儿，这里先手推一遍）")
     expect = {
