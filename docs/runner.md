@@ -62,7 +62,7 @@ YAML 里**不出现任何 lark-cli 命令**，只出现能力名。能力是流�
 | 读邮件 | 按文件夹、按游标拉邮件与附件 | `mail +triage` / `mail +messages` | 读夹具目录 |
 | 读问卷记录 | 读调研表 | `base +record-list` | 读夹具 JSON |
 | 读群成员 | 读群成员名单 | `im chat.members` | 读夹具 JSON |
-| 发邮件 | 发群二维码、邀请、凭证 | `mail +send` | 写进 `outbox/` |
+| 发邮件 | 发群二维码、问卷、邀请、凭证 | `mail +send` | 写进 `outbox/` |
 | 写回 | 写台账、标记状态列 | `base +record-update` | 写夹具文件 |
 
 **mock 就是这张表的第二列换成第三列**——换掉的是实现，不是流程。`--mock` 一开，同一份 YAML 用夹具跑；关掉，同一份 YAML 打真飞书。这也是为什么 YAML 里不能写命令：写了就没法换。
