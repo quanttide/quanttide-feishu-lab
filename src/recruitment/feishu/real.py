@@ -1,4 +1,4 @@
-"""真实能力：子进程调 lark-cli。
+"""真飞书客户端：子进程调 lark-cli（canonical 实现）。
 
 同一份代码两种活法，差别只在 PATH：
 
@@ -39,8 +39,8 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
-class CLICapabilities:
-    """Capabilities 的 lark-cli 子进程实现：命令只活在这里。"""
+class CLIFeishu:
+    """FeishuClient 的 lark-cli 子进程实现：命令只活在这里。"""
 
     def __init__(self, lark_cli: str | None = None, *, mailbox: str = "me",
                  base_token: str | None = None, table_id: str | None = None,
@@ -84,7 +84,7 @@ class CLICapabilities:
             return name
         return os.path.join(self.attachments_dir, name)
 
-    # ── 四种能力 ──────────────────────────────────────────
+    # ── 飞书能力 ──────────────────────────────────────────
     def read_mail(self, folder: str, cursor: str | None = None) -> tuple[list[Mail], str]:
         """读某个文件夹：+triage 列摘要，+messages 取正文与附件，游标语义与夹具层一致。"""
         summaries = self._run(

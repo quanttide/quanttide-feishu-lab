@@ -11,11 +11,13 @@ import yaml
 
 @dataclass
 class Check:
-    """一段机器可判的条件。能力名对能力层的函数名；成立是判据。"""
+    """一段机器可判的条件，两类互斥：
+    - 能力检查：capability 非空，调飞书能力层后判（holds = 非空 / 为空 / 包含…）。
+    - 时间检查：timing 非空，纯领域逻辑，从候选人进入当前状态算起，不碰飞书。"""
     capability: str | None = None
     params: dict[str, Any] = field(default_factory=dict)
-    holds: str | None = None      # 非空 / 为空 / 超过天数
-    days: int | None = None       # 与「超过天数」配套
+    holds: str | None = None      # 能力检查的判据：非空 / 为空 / 包含…
+    timing: dict[str, Any] | None = None   # 时间检查：{成立: 超过天数, 天数: N}
 
     @staticmethod
     def parse(raw: dict[str, Any] | None) -> "Check | None":
@@ -25,7 +27,7 @@ class Check:
             capability=raw.get("能力"),
             params=dict(raw.get("参数") or {}),
             holds=raw.get("成立"),
-            days=raw.get("天数"),
+            timing=raw.get("计时"),
         )
 
 

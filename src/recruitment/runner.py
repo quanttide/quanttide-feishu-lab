@@ -59,8 +59,11 @@ def _holds(cap, mig, email: str, entry: dict, today: str) -> bool:
     c = mig.check
     if c is None:
         return True                     # 没写检查 = 无条件：人这一格就该推
-    if c.capability == "_since":
-        return st.since_days(entry, today) >= (c.days or 0)
+    if c.timing is not None:           # 纯时间检查：不读飞书，归领域逻辑
+        days = c.timing.get("天数") or 0
+        return st.since_days(entry, today) >= days
+    if c.capability is None:
+        return False
     fn = getattr(cap, c.capability, None)
     if fn is None:
         return False
@@ -99,8 +102,12 @@ def advance(cap, flow, state: dict, today: str | None = None,
                                          mig.trigger, mig.executor))
                 continue
             if not _holds(cap, mig, who, entry, today):
+                chk = mig.check
+                label = "无检查"
+                if chk:
+                    label = chk.capability or ("计时" if chk.timing else "无检查")
                 report.waiting.append((who, f'{mig.from_state}→{mig.to_state}',
-                                       f'检查不成立（{mig.check.capability if mig.check else "无检查"}）'))
+                                       f'检查不成立（{label}）'))
                 continue
             result = _perform(cap, mig, who)    # 动作先做：失败就不挪格
             entry["state"] = mig.to_state

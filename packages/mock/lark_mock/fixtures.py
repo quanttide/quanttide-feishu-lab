@@ -4,7 +4,7 @@
 环境变量 ``LARK_MOCK_FIXTURES`` 可换目录——smoke 用它把输出引到临时目录，
 不污染仓库里的 ``fixtures/outbox/``。
 
-夹具形状见 ``src/recruitment/capabilities/mock.py`` 的模块说明：
+夹具形状见 ``src/recruitment/feishu/mock.py`` 的模块说明：
     fixtures/mail/<文件夹>.json   每封：message_id / sender / subject / body / date / attachments
     fixtures/survey.json          调研表记录
     fixtures/group_members.json   群成员邮箱
@@ -30,7 +30,7 @@ def root() -> Path:
 
 
 def folder_file(folder: str) -> str:
-    """文件夹名 → 夹具文件名。与 capabilities/mock.py 的规则一致。"""
+    """文件夹名 → 夹具文件名。与 feishu/mock.py 的规则一致。"""
     return re.sub(r"[^\w一-鿿]+", "-", folder).strip("-") + ".json"
 
 
@@ -69,7 +69,7 @@ def find_messages(message_ids: list[str]) -> dict[str, dict]:
 
 
 def slug(email: str) -> str:
-    """邮箱 → 文件名片段。与 capabilities/mock.py 的 _slug 保持一致，
+    """邮箱 → 文件名片段。与 feishu/mock.py 的 _slug 保持一致，
     同一封发信无论走 Python 层 mock 还是 CLI 层 mock，message_id 都相同。"""
     local, _, domain = email.partition("@")
     digest = 0

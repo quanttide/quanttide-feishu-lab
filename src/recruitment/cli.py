@@ -10,7 +10,7 @@ import argparse
 import os
 import sys
 
-from . import capabilities as cap
+from . import feishu as cap
 from . import flow as flow_mod
 from . import runner
 from . import state as st
@@ -48,9 +48,9 @@ def main(argv: list[str] | None = None) -> int:
 def _execute(args: argparse.Namespace) -> int:
     flow = flow_mod.load(args.flow)
     if args.mock:
-        capabilities = cap.mock(args.fixtures)
+        client = cap.mock(args.fixtures)
     else:
-        capabilities = cap.real(
+        client = cap.real(
             mailbox=flow.collect.get("邮箱") or "me",
             attachments_dir=os.path.join(args.fixtures, "attachments"),
         )
@@ -58,7 +58,7 @@ def _execute(args: argparse.Namespace) -> int:
     state = st.load(args.state)
     rebuilt = False
     if not state:
-        state = st.derive(capabilities, flow)
+        state = st.derive(client, flow)
         rebuilt = True
     if rebuilt:
         print(f"本地无状态：从飞书侧原始数据重建（{len(state)} 人）")
@@ -69,7 +69,7 @@ def _execute(args: argparse.Namespace) -> int:
             print(f"  {who:26s} {e['state']}（{e['since']} 起）")
         return 0
 
-    report = runner.advance(capabilities, flow, state, step_only=not args.drain)
+    report = runner.advance(client, flow, state, step_only=not args.drain)
     st.save(args.state, state)
 
     print(f"推进 {len(report.advanced)} 条")

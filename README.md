@@ -12,7 +12,7 @@ uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt
 
 PYTHONPATH=src .venv/bin/python -m recruitment.cli run --mock     # 走夹具推一步
 PYTHONPATH=src .venv/bin/python -m recruitment.cli status --mock  # 看谁在哪一格
-PYTHONPATH=src scripts/smoke.py                                   # 能力层冒烟：夹具 + CLI 两层
+PYTHONPATH=src scripts/smoke.py                                   # 飞书适配层冒烟：夹具 + CLI 两层
 PATH=$PWD/packages/mock/bin:$PATH PYTHONPATH=src \
   .venv/bin/python -m recruitment.cli status --cli                # 子进程走假 lark-cli
 ```
@@ -26,8 +26,8 @@ PATH=$PWD/packages/mock/bin:$PATH PYTHONPATH=src \
 | 路径 | 是什么 |
 | :-- | :-- |
 | `tests/fixtures/flows/recruitment.yaml` | 流程定义：状态、迁移、触发、执行者、检查、副作用 |
-| `src/recruitment/capabilities/` | 能力层：流程要用到的四种能力，两种实现（夹具 / lark-cli 子进程） |
+| `src/recruitment/feishu/` | 飞书适配层：流程要用到的飞书能力，两种实现（进程内测试替身 / lark-cli 子进程） |
 | `src/recruitment/{flow,state,runner,cli}.py` | 执行器：读流程、落状态、推一步、命令行 |
 | `tests/fixtures/` | 测试样例：虚构候选人、邮件文件夹、调研表、群成员、附件、流程定义；`state/` 运行时落盘，不入库 |
 | `packages/mock/` | 假 lark-cli：读同一批夹具，遮蔽真 CLI，供真实能力（子进程路径）离线自测 |
-| `scripts/smoke.py` | 能力层冒烟：不推流程，只验夹具撑不撑得起 |
+| `scripts/smoke.py` | 飞书适配层冒烟：不推流程，只验夹具撑不撑得起 |

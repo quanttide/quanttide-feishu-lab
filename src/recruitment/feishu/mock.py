@@ -1,4 +1,4 @@
-"""夹具实现：把能力表的三列换成夹具那一列。
+"""测试替身：把飞书能力换成夹具，零外部 IO。
 
 夹具目录的形状：
 
@@ -12,8 +12,11 @@
       group_members.json     群成员邮箱：[…]
       outbox/                发出去的邮件（本实现写入；每封一个 .json）
 
-发信写进 outbox/ 而不是真发；读信只读夹具。所以同一份 YAML 在这里跑出来的
+发信写进 outbox/ 而不是真发；读信只读夹具。所以同一份流程定义在这里跑出来的
 结果完全由夹具决定——可重复，可断言。
+
+注意：这是**测试替身**，不是「另一种平台」。它的唯一身份是让流程在离线、确定的
+条件下被验证；打真飞书请走 ``real()``。message_id 算法与 Rust 版对齐。
 """
 
 from __future__ import annotations
@@ -34,7 +37,9 @@ def _slug(email: str) -> str:
     return f"{local}_{digest:06x}"
 
 
-class MockCapabilities:
+class MockFeishu:
+    """飞书能力的进程内测试替身，读夹具、写 outbox。"""
+
     def __init__(self, fixtures_dir: str) -> None:
         self.root = os.path.abspath(fixtures_dir)
         self.outbox = os.path.join(self.root, "outbox")
@@ -50,7 +55,7 @@ class MockCapabilities:
     def _folder_file(folder: str) -> str:
         return re.sub(r"[^\w\u4e00-\u9fff]+", "-", folder).strip("-") + ".json"
 
-    # ── 四种能力 ──────────────────────────────────────────
+    # ── 飞书能力 ──────────────────────────────────────────
     def read_mail(self, folder: str, cursor: str | None = None):
         """读夹具里某个文件夹的邮件。游标按日期过滤：只返回比游标新的。"""
         raw = self._read_json("mail", self._folder_file(folder))
