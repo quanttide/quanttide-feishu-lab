@@ -5,8 +5,8 @@
     PYTHONPATH=src python3 scripts/smoke.py
 
 它不推进流程，只回答一个问题：**光靠夹具里的数据，一个候选人「现在在哪一格」推得出来吗？**
-六位虚构候选人应当分别落在：投递、问卷已发、问卷已交、已进群，
-另有两位分别躺在 Spam 与被移走的文件夹里（两处卡点）。
+六位虚构候选人应当落在投递、二维码已发、已进群三格，
+其中两位分别躺在 Spam 与被移走的文件夹里（两处卡点）。
 
 后半段把同样四种能力换成子进程走 packages/mock 的假 lark-cli（CLI 层），
 逐项核两层结果一致——同一批夹具，换实现不换结果。
@@ -50,14 +50,16 @@ def main() -> int:
     print(f"  只出现在「沟通面试中」（漂移）：{drift}")
     print(f"  只出现在 Spam（误判）：{spammy}")
 
-    print("\n── 读问卷记录 / 读群成员 / 发邮件")
+    print("\n── 读问卷记录 / 读群成员 / 发群二维码")
     people = sorted(set(list(applications) + drift + spammy))
     records = c.read_survey(people)
     members = c.read_group_members()
     print(f"  调研表命中：{sorted(records)}")
     print(f"  群成员：{sorted(members)}")
-    mid = c.send_mail("chenmo@example.com", "量潮招聘 · 准入问卷", "请填写问卷：…")
-    print(f"  发出一封（写进 tests/fixtures/outbox/）：{mid}")
+    qr_to, qr_subject = "chenmo@example.com", "量潮实训基地 · 群二维码"
+    qr_body, qr_attach = "你好，扫码直接进群（群二维码见附件）。", ["群二维码.png"]
+    mid = c.send_mail(qr_to, qr_subject, qr_body, qr_attach)
+    print(f"  发出一封群二维码（写进 tests/fixtures/outbox/）：{mid}")
 
     print("\n── CLI 层：子进程走 packages/mock 的假 lark-cli（同一批夹具，两层应当一致）")
     mock_bin = os.path.abspath(os.path.join(
@@ -81,14 +83,14 @@ def main() -> int:
         same(f"read_mail({folder})", c.read_mail(folder), cli_cap.read_mail(folder))
     same("read_survey", records, cli_cap.read_survey(people))
     same("read_group_members", members, cli_cap.read_group_members())
-    same("send_mail", mid,
-         cli_cap.send_mail("chenmo@example.com", "量潮招聘 · 准入问卷", "请填写问卷：…"))
+    same("send_mail", mid, cli_cap.send_mail(qr_to, qr_subject, qr_body, qr_attach))
 
     print("\n── 每人现在在哪一格（runner 的活儿，这里先手推一遍）")
+    sent_qr = {qr_to}                       # 上面刚给他发过群二维码
     expect = {
-        "chenmo@example.com": "投递",
-        "linyizhou@example.com": "问卷已发",
-        "suxiao@example.com": "问卷已交",
+        "chenmo@example.com": "二维码已发",
+        "linyizhou@example.com": "投递",
+        "suxiao@example.com": "投递",
         "herui@example.com": "已进群",
         "zhouyan@example.com": "投递（在 Spam 里，要先捞回）",
         "zhengnan@example.com": "投递（被移出收件箱，靠补拉找回）",
@@ -97,11 +99,8 @@ def main() -> int:
     for email in people:
         if email in members:
             state = "已进群"
-        elif email in records:
-            state = "问卷已交"
-        elif any(m.recipient.lower() == email for folder in FOLDERS
-                 for m in c.read_mail(folder)[0]):
-            state = "问卷已发"
+        elif email in sent_qr:
+            state = "二维码已发"
         else:
             state = "投递"
         if email in spammy:
@@ -115,7 +114,7 @@ def main() -> int:
         print(f"  {'✓' if good else '✗'} {email:26s} {state}（期望 {want}）")
 
     print(f"\n状态推对 {passed}/{total}")
-    print("夹具覆盖四格：", "是 ✓" if passed == total else "否 ✗")
+    print("夹具覆盖 投递/二维码已发/已进群：", "是 ✓" if passed == total else "否 ✗")
     print(f"CLI 层对齐 {cli_same}/{cli_total}")
     return 0 if (passed == total and cli_same == cli_total) else 1
 

@@ -30,6 +30,19 @@ class Check:
 
 
 @dataclass
+class Action:
+    """一段机器要执行的动作：推这条迁移时先调它，失败就不挪格。"""
+    capability: str
+    params: dict[str, Any]
+
+    @staticmethod
+    def parse(raw: dict[str, Any] | None) -> "Action | None":
+        if not raw:
+            return None
+        return Action(capability=raw["能力"], params=dict(raw.get("参数") or {}))
+
+
+@dataclass
 class Migration:
     from_state: str
     to_state: str
@@ -37,6 +50,7 @@ class Migration:
     executor: str                 # 人 / 系统 / 半自动
     check: Check | None = None
     effect: str = ""
+    action: Action | None = None  # 推过去之前要真做的事（机器执行）
 
     @property
     def automatic(self) -> bool:
@@ -68,6 +82,7 @@ def load(path: str) -> Flow:
             executor=m.get("执行者", ""),
             check=Check.parse(m.get("检查")),
             effect=m.get("副作用", ""),
+            action=Action.parse(m.get("动作")),
         )
         for m in raw.get("迁移", [])
     ]

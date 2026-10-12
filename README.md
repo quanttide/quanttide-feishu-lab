@@ -18,8 +18,8 @@ PATH=$PWD/packages/mock/bin:$PATH PYTHONPATH=src \
 ```
 
 `--mock` 走 Python 层夹具；`--cli` 走子进程调 `lark-cli`——PATH 前面放 `packages/mock/bin` 就是离线的
-假 CLI（读同一批 `tests/fixtures/`，六个虚构候选人），放真 `lark-cli` 就打真飞书（问卷表与群的 id 用
-`LARK_BASE_TOKEN` / `LARK_TABLE_ID` / `LARK_CHAT_ID` 给真值）。两个都不给会明确报错，不会偷偷打出去。
+假 CLI（读同一批 `tests/fixtures/`，六个虚构候选人），放真 `lark-cli` 就打真飞书（资源 id 用
+`LARK_CHAT_ID` 等环境变量给真值）。两个都不给会明确报错，不会偷偷打出去。
 
 ## 目录
 

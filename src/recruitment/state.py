@@ -28,38 +28,27 @@ def save(path: str, state: dict) -> None:
 
 
 def derive(cap, flow, today: str | None = None) -> dict:
-    """从飞书侧的原始数据重建每人当前在哪一格。缺省状态由流程的第二个状态起步。"""
+    """从飞书侧的原始数据重建每人当前在哪一格。缺省状态由流程的第一个状态起步。"""
     today = today or date.today().isoformat()
-    first, second = flow.states[0], flow.states[1]
     members = cap.read_group_members()
 
     applied: dict[str, str] = {}      # 邮箱 → 投递日
-    invited: dict[str, str] = {}      # 邮箱 → 问卷发出日
     for folder in (flow.collect.get("范围") or []):
+        if folder != "收件箱":
+            continue              # 漂移 / Spam 是补拉范围：进人仍以收件箱为准（见流程「待定」）
         mails, _ = cap.read_mail(folder)
         for m in mails:
-            who = (m.sender if folder == "收件箱" else m.recipient).lower()
-            if not who or "@" not in who:
-                continue
-            if folder == "收件箱":
+            who = m.sender.lower()
+            if who and "@" in who:
                 applied.setdefault(who, m.date)
-            elif folder == "已发送问卷":
-                invited.setdefault(who, m.date)
 
-    # 群里还有员工，不是候选人：候选人从投递与已发问卷两侧来，群成员只用来升级状态
-    people = sorted(set(applied) | set(invited))
-    records = cap.read_survey(people)
-
+    # 群里还有员工，不是候选人：候选人从投递来，群成员只用来升级状态
     state: dict = {}
-    for who in people:
+    for who in sorted(applied):
         if who in members:
-            where, since = flow.states[4], today          # 已进群
-        elif who in records:
-            where, since = flow.states[2], records[who].submitted_at   # 问卷已交
-        elif who in invited:
-            where, since = second, invited[who]           # 问卷已发
+            where, since = "已进群", today          # 扫码进过群的，重建时直接算已进群
         else:
-            where, since = first, applied.get(who, today)  # 投递
+            where, since = flow.states[0], applied[who]
         state[who] = {"state": where, "since": since, "trail": [where]}
     return state
 
