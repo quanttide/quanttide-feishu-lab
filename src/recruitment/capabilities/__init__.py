@@ -64,7 +64,7 @@ def mock(fixtures_dir: str) -> Capabilities:
 
 
 def real(*args, **kwargs) -> Capabilities:
-    """真实实现：接本地 lark-cli。暂未实现——先让流程在夹具上跑通。"""
-    raise NotImplementedError(
-        "真实能力尚未实现：先跑 --mock 把流程走通，再接 lark-cli"
-    )
+    """真实实现：子进程调 lark-cli。PATH 里是 packages/mock/bin 就离线走夹具，
+    是真 lark-cli 就打真飞书——同一份代码，两种活法（判据二）。"""
+    from .real import CLICapabilities
+    return CLICapabilities(*args, **kwargs)

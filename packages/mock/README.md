@@ -9,11 +9,11 @@
 | 实现 | 形态 | 给谁用 | 现状 |
 | :-- | :-- | :-- | :-- |
 | Python 层 mock（`capabilities/mock.py`） | 能力接口直读夹具 | runner | 已跑通 |
-| 真实能力 | **子进程调 `lark-cli`** | runner | 未实现（真飞书侧 scope 未开通、要授权） |
+| 真实能力 | **子进程调 `lark-cli`**（`capabilities/real.py`） | runner（`--cli`） | 已实现；真飞书侧 scope 未开通、要授权，仍打不通 |
 
-真实能力卡在「打真飞书」上，但「子进程调 CLI」这条路径本身可以先验：
-把本包的 `bin/lark-cli` 顶到 PATH 最前面遮蔽真 CLI，真实能力代码**一行不改**
-就能离线跑通。这也是 runner.md 判据「换实现不换流程」能在本地兑现的前提。
+真实能力已经就是子进程调 `lark-cli`：把本包的 `bin/lark-cli` 顶到 PATH 最前面遮蔽真 CLI，
+它**一行不改**就能离线跑通——`scripts/smoke.py` 的 CLI 段逐项核对两层结果一致。
+这也是 runner.md 判据「换实现不换流程」在本地兑现的地方。
 
 两层 mock 并存，读同一批 `tests/fixtures/`，不互相取代。
 
@@ -78,4 +78,4 @@ python3 packages/mock/smoke.py
 
 - 不模拟网络延迟、分页上限、`truncations[]`
 - 不真发邮件、不写真表——写只落到 `tests/fixtures/outbox/`
-- 不接 runner：runner 走 Python 层 mock；本包是给真实能力（子进程路径）预留的离线靶子
+- 不被 import：runner 默认走 Python 层 mock；`--cli` 才经子进程走到本包，自检在 `scripts/smoke.py` 的 CLI 段

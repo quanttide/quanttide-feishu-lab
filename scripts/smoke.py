@@ -7,6 +7,9 @@
 它不推进流程，只回答一个问题：**光靠夹具里的数据，一个候选人「现在在哪一格」推得出来吗？**
 六位虚构候选人应当分别落在：投递、问卷已发、问卷已交、已进群，
 另有两位分别躺在 Spam 与被移走的文件夹里（两处卡点）。
+
+后半段把同样四种能力换成子进程走 packages/mock 的假 lark-cli（CLI 层），
+逐项核两层结果一致——同一批夹具，换实现不换结果。
 """
 
 from __future__ import annotations
@@ -56,6 +59,31 @@ def main() -> int:
     mid = c.send_mail("chenmo@example.com", "量潮招聘 · 准入问卷", "请填写问卷：…")
     print(f"  发出一封（写进 tests/fixtures/outbox/）：{mid}")
 
+    print("\n── CLI 层：子进程走 packages/mock 的假 lark-cli（同一批夹具，两层应当一致）")
+    mock_bin = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "packages", "mock", "bin"))
+    os.environ["PATH"] = mock_bin + os.pathsep + os.environ["PATH"]
+    cli_cap = cap.real(attachments_dir=os.path.join(FIXTURES, "attachments"))
+
+    cli_same = cli_total = 0
+
+    def same(name: str, a, b) -> None:
+        nonlocal cli_same, cli_total
+        cli_total += 1
+        ok = a == b
+        cli_same += ok
+        print(f"  {'✓' if ok else '✗'} {name}")
+        if not ok:
+            print(f"      夹具层：{a!r}")
+            print(f"      CLI 层：{b!r}")
+
+    for folder in FOLDERS:
+        same(f"read_mail({folder})", c.read_mail(folder), cli_cap.read_mail(folder))
+    same("read_survey", records, cli_cap.read_survey(people))
+    same("read_group_members", members, cli_cap.read_group_members())
+    same("send_mail", mid,
+         cli_cap.send_mail("chenmo@example.com", "量潮招聘 · 准入问卷", "请填写问卷：…"))
+
     print("\n── 每人现在在哪一格（runner 的活儿，这里先手推一遍）")
     expect = {
         "chenmo@example.com": "投递",
@@ -88,7 +116,8 @@ def main() -> int:
 
     print(f"\n状态推对 {passed}/{total}")
     print("夹具覆盖四格：", "是 ✓" if passed == total else "否 ✗")
-    return 0 if passed == total else 1
+    print(f"CLI 层对齐 {cli_same}/{cli_total}")
+    return 0 if (passed == total and cli_same == cli_total) else 1
 
 
 if __name__ == "__main__":
