@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from . import fixtures
-from .envelope import Result, usage_error
+from .envelope import Result, table_of, usage_error
 
 SCOPE_FIXTURE = {"mine": "my-tasks.json", "related": "related-tasks.json",
                  "tasklists": "tasklists.json"}
@@ -43,7 +43,4 @@ def list_tasks(flags: dict, *, command: str = "+get-my-tasks") -> Result:
     page, has_more, token = fixtures.page_of(items, flags.get("page-token"),
                                              flags.get("page-size") or 50)
     data = {"items": page, "has_more": has_more, "page_token": token}
-    lines = ["guid\tsummary\tcompleted"]
-    lines += [f"{i.get('guid','')}\t{i.get('summary','')}\t{i.get('completed','')}"
-              for i in page]
-    return Result(data, table="\n".join(lines))
+    return Result(data, table=table_of(page))

@@ -14,7 +14,7 @@ import os
 from datetime import datetime
 
 from . import fixtures
-from .envelope import Result, usage_error
+from .envelope import Result, table_of, usage_error
 
 
 def _load_filter(raw: str | None) -> dict:
@@ -75,14 +75,12 @@ def triage(flags: dict) -> Result:
         "page_token": next_token,
     }
 
-    lines = ["date\tfrom\tsubject\tmessage_id"]
-    lines += [f"{i['date']}\t{i['from']}\t{i['subject']}\t{i['message_id']}" for i in items]
     notes = [f"{len(items)} message(s)"]
     if has_more:
         notes.append(f"next page: mail +triage --filter '{{\"folder\": \"{folder}\"}}' "
                      f"--page-token '{next_token}'")
     notes.append("tip: read full content: mail +messages --message-ids <id1>,<id2>")
-    return Result(data, table="\n".join(lines), notes=notes)
+    return Result(data, table=table_of(items), notes=notes)
 
 
 def _normalize(rec: dict, message_id: str, want_html: bool) -> dict:

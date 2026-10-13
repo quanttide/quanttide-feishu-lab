@@ -16,7 +16,7 @@ member_id_type=email——接真飞书时能力层要补一步 open_id → 邮�
 from __future__ import annotations
 
 from . import fixtures
-from .envelope import Result, usage_error
+from .envelope import Result, table_of, usage_error
 
 
 def _paged(items: list, flags: dict, *, key: str = "messages") -> Result:
@@ -44,7 +44,7 @@ def chat_members_list(flags: dict) -> Result:
 
     data = {"users": users, "bots": [], "truncations": []}   # 夹具里没有机器人
     lines = ["member_id\tname"] + [f"{u['member_id']}\t{u['name']}" for u in users]
-    return Result(data, table="\n".join(lines))
+    return Result(data, table=table_of(users))
 
 
 def chat_messages_list(flags: dict) -> Result:

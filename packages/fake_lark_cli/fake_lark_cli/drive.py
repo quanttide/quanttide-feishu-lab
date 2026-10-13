@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from . import fixtures
-from .envelope import Result, usage_error
+from .envelope import Result, table_of, usage_error
 
 
 def search(flags: dict) -> Result:
@@ -26,10 +26,7 @@ def search(flags: dict) -> Result:
     page, has_more, token = fixtures.page_of(items, flags.get("page-token"),
                                              flags.get("page-size") or 20)
     data = {"items": page, "has_more": has_more, "page_token": token}
-    lines = ["token\tname\tedited_time"]
-    lines += [f"{i.get('token','')}\t{i.get('name','')}\t{i.get('edited_time','')}"
-              for i in page]
-    return Result(data, table="\n".join(lines))
+    return Result(data, table=table_of(page))
 
 
 def fetch(flags: dict) -> Result:

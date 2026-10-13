@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from . import fixtures
-from .envelope import Result, usage_error
+from .envelope import Result, table_of, usage_error
 
 
 def search(flags: dict) -> Result:
@@ -25,10 +25,7 @@ def search(flags: dict) -> Result:
         payload.get("items") or [], flags.get("page-token"), flags.get("page-size") or 30)
 
     data = {"items": items, "has_more": has_more, "page_token": token}
-    lines = ["meeting_id\ttopic\tstart_time"]
-    lines += [f"{i.get('meeting_id','')}\t{i.get('topic','')}\t{i.get('start_time','')}"
-              for i in items]
-    return Result(data, table="\n".join(lines))
+    return Result(data, table=table_of(items))
 
 
 def meeting_get(flags: dict) -> Result:

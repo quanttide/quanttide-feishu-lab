@@ -30,6 +30,25 @@ def usage_error(message: str, *, hint: str | None = None,
     sys.exit(2)
 
 
+def table_of(rows: list[dict], *, cols: list[str] | None = None, form: str = "tsv") -> str:
+    """把一批记录渲染成表：列名取第一行的键（或给 cols），值原样。
+
+    ``form="tsv"``（默认，给终端看）或 ``"markdown"`（真 CLI 的 base 默认）。
+    一份实现够所有命令用——各命令自己拼表头只会让列名走样。
+    """
+    rows = [r for r in rows if isinstance(r, dict)]
+    cols = cols or (list(rows[0].keys()) if rows else [])
+    if not cols:
+        return "(no rows)"
+    cell = lambda v: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else str(v)
+    body = [[cell(r.get(c, "")) for c in cols] for r in rows]
+    if form == "markdown":
+        head = "| " + " | ".join(cols) + " |"
+        sep = "| " + " | ".join("---" for _ in cols) + " |"
+        return "\n".join([head, sep] + ["| " + " | ".join(row) + " |" for row in body])
+    return "\n".join(["\t".join(cols)] + ["\t".join(row) for row in body])
+
+
 @dataclass
 class Result:
     """一条命令跑完的结果：data 是 JSON 负载，table 是 --format=table 的正文，
@@ -65,7 +84,7 @@ def emit(result: Result, flags: dict, command: str, *, top: dict | None = None) 
         _write(json.dumps(payload, ensure_ascii=False, indent=2), flags.get("jq"))
     elif fmt == "ndjson":
         _write(json.dumps(payload, ensure_ascii=False), flags.get("jq"))
-    elif fmt == "table":
+    elif fmt in ("table", "markdown"):     # markdown 是 base 的默认格式
         if result.table is None:
             usage_error(f"mock 未实现 {command} 的 --format=table",
                         hint="改用 --format json")
@@ -74,5 +93,5 @@ def emit(result: Result, flags: dict, command: str, *, top: dict | None = None) 
             sys.stderr.write(note + "\n")
     else:
         usage_error(f"mock 未实现 --format={fmt}",
-                    hint="mock 支持 json / data / pretty / ndjson / table",
+                    hint="mock 支持 json / data / pretty / ndjson / table / markdown",
                     param="--format")

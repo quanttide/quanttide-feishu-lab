@@ -46,7 +46,7 @@
 
 - 成功：`{"ok": true, "data": {...}}` → stdout，exit 0
 - 失败：`{"ok": false, "error": {type, subtype, message, hint?, param?}}` → **stderr，exit 2**
-- `--format`：`json` / `data` / `pretty` / `ndjson` / `table`（按命令的真 CLI 默认值，如 triage 默认 table、record-list 默认 markdown）；`--json` 是简写
+- `--format`：`json` / `data` / `pretty` / `ndjson` / `table` / `markdown`（表输出由 envelope 的 `table_of` 一份渲染）（按命令的真 CLI 默认值，如 triage 默认 table、record-list 默认 markdown）；`--json` 是简写
 - `--jq <expr>`：走本机 `jq` 过滤输出；给了 `--jq` 一律按 json 走
 - `--dry-run`：回 argv 与夹具根，**不编 API 路径**
 - 未实现的域 / 命令 / flag：回同款 validation 错误——缺什么就是接真 CLI 时要补什么，不假装有

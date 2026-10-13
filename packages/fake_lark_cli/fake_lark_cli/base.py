@@ -12,30 +12,9 @@ import json
 from pathlib import Path
 
 from . import fixtures
-from .envelope import Result, usage_error
+from .envelope import Result, table_of, usage_error
 
 
-
-
-def _markdown(items: list[dict]) -> str:
-    if not items:
-        return "(no records)"
-    cols: list[str] = []
-    for it in items:
-        for k in it["fields"]:
-            if k not in cols:
-                cols.append(k)
-
-    def cell(v) -> str:
-        if isinstance(v, (dict, list)):
-            return json.dumps(v, ensure_ascii=False)
-        return str(v)
-
-    lines = ["| " + " | ".join(cols) + " |",
-             "| " + " | ".join("---" for _ in cols) + " |"]
-    for it in items:
-        lines.append("| " + " | ".join(cell(it["fields"].get(c, "")) for c in cols) + " |")
-    return "\n".join(lines)
 
 
 def record_list(flags: dict) -> Result:
@@ -74,4 +53,4 @@ def record_list(flags: dict) -> Result:
     page = items[offset:offset + limit]
     data = {"items": page, "total": total, "offset": offset,
             "has_more": offset + len(page) < total}
-    return Result(data, table=_markdown(page))
+    return Result(data, table=table_of([it["fields"] for it in page], form="markdown"))
