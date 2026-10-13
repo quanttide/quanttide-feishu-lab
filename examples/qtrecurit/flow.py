@@ -1,11 +1,14 @@
-"""招聘流程示例：流程读成数据、人推到下一格、状态落本地。
+"""招聘流程：把流程读成数据、把人推到下一格、把状态落在本地。
 
-一个示例该有的东西就这三件，所以放在一个文件里——它演示的是能力层怎么用，
+一个示例该有的东西就这三件，所以放在一个文件里——它演示的是怎么用基础单元与定义，
 不是要长成第二个项目。设计由来见 `docs/runner.md`。
 
 **流程 = YAML**（`recruitment.yaml`）：状态、迁移、触发、执行者、检查、动作。
+流程写的是检查与动作的**名字**（`看谁进群了`、`发群二维码`）——这些名字是
+`定义.yaml` 里的定义，定义才认识飞书；流程不认识飞书。
+
 **推格规则**：执行者是「系统」且检查成立才推；动作先做，失败不挪格；人 / 半自动只记待办。
-**状态**：落在本地文件，可从飞书侧的原始数据重建——本地是缓存，事实在飞书那边。
+**状态**：落在本地文件，可从飞书侧重建——本地是缓存，事实在飞书那边。
 """
 
 from __future__ import annotations
@@ -22,10 +25,9 @@ import yaml
 # ── 流程模型 ─────────────────────────────────────────────
 @dataclass
 class Check:
-    """一段机器可判的条件，两类互斥：能力检查（调能力层后判）与时间检查（纯领域逻辑）。"""
+    """一段机器可判的条件，两类互斥：定义检查（跑一条定义后判）与时间检查（纯领域逻辑）。"""
 
-    capability: str | None = None
-    params: dict[str, Any] = field(default_factory=dict)
+    definition: str | None = None
     holds: str | None = None               # 非空 / 为空 / 包含…
     timing: dict[str, Any] | None = None   # {成立: 超过天数, 天数: N}
 
@@ -33,22 +35,20 @@ class Check:
     def parse(raw: dict[str, Any] | None) -> "Check | None":
         if not raw:
             return None
-        return Check(capability=raw.get("能力"), params=dict(raw.get("参数") or {}),
-                     holds=raw.get("成立"), timing=raw.get("计时"))
+        return Check(definition=raw.get("定义"), holds=raw.get("成立"), timing=raw.get("计时"))
 
 
 @dataclass
 class Action:
-    """推这条迁移之前要真做的事（调一个能力）；失败就不挪格。"""
+    """推这条迁移之前要跑的定义（一条一串飞书活动）；失败就不挪格。"""
 
-    capability: str
-    params: dict[str, Any]
+    definition: str
 
     @staticmethod
     def parse(raw: dict[str, Any] | None) -> "Action | None":
         if not raw:
             return None
-        return Action(capability=raw["能力"], params=dict(raw.get("参数") or {}))
+        return Action(definition=raw["定义"])
 
 
 @dataclass
@@ -116,24 +116,33 @@ def since_days(entry: dict, today: str) -> int:
         return 0
 
 
-def derive(cap, flow: Flow, today: str | None = None) -> dict:
-    """从飞书侧的原始数据重建每人现在在哪一格：进人只看收件箱，群成员只用来升级状态。"""
+def context_of(flow: Flow, engine_context: dict | None = None) -> dict:
+    """调用方给的定义上下文 + 流程收集节里的东西（邮箱）。群、表格这类留空由基础单元取环境变量。"""
+    ctx = dict(engine_context or {})
+    if flow.collect.get("邮箱"):
+        ctx.setdefault("邮箱", flow.collect["邮箱"])
+    return ctx
+
+
+def derive(engine, flow: Flow, context: dict, today: str | None = None) -> dict:
+    """从飞书侧重建每人现在在哪一格：进人只看收件箱，群成员只用来升级状态。"""
     today = today or date.today().isoformat()
-    members = cap.read_group_members()
+    members = {str(r.get("邮箱") or "").lower() for r in engine.call("看谁进群了", **context).rows}
     applied: dict[str, str] = {}
     for folder in (flow.collect.get("范围") or []):
         if folder != "收件箱":
             continue                    # 漂移 / Spam 是补拉范围，进人仍以收件箱为准
-        mails, _ = cap.read_mail(folder)
-        for m in mails:
-            who = m.sender.lower()
+        out = engine.call("读投递邮件", 文件夹=folder, **context)
+        for row in out.rows:
+            who = str(row.get("发件人") or "").lower()
             if who and "@" in who:
-                applied.setdefault(who, m.date)
+                applied.setdefault(who, str(row.get("日期") or ""))
     state: dict = {}
     for who in sorted(applied):
-        where = "已进群" if who in members else flow.states[0]
-        since = today if who in members else applied[who]
-        state[who] = {"state": where, "since": since, "trail": [where]}
+        joined = who in members
+        where = "已进群" if joined else flow.states[0]
+        state[who] = {"state": where, "since": today if joined else applied[who],
+                      "trail": [where]}
     return state
 
 
@@ -166,47 +175,31 @@ class Report:
         return not (self.advanced or self.todos or self.waiting)
 
 
-def _render(value, email: str):
-    """把参数里的 {{候选人.邮箱}} 换成这个人；字符串 / 列表 / 字典都过一遍。"""
-    if isinstance(value, str):
-        return value.replace("{{候选人.邮箱}}", email)
-    if isinstance(value, list):
-        return [_render(v, email) for v in value]
-    if isinstance(value, dict):
-        return {k: _render(v, email) for k, v in value.items()}
-    return value
-
-
-def _holds(cap, mig: Migration, email: str, entry: dict, today: str) -> bool:
-    c = mig.check
-    if c is None:
+def _holds(engine, mig: Migration, who: str, entry: dict, today: str, context: dict) -> bool:
+    check = mig.check
+    if check is None:
         return True                              # 没写检查 = 无条件
-    if c.timing is not None:                     # 纯时间检查：不碰飞书
-        return since_days(entry, today) >= (c.timing.get("天数") or 0)
-    fn = getattr(cap, c.capability or "", None)
-    if fn is None:
-        return False
-    result = fn(**{k: _render(v, email) for k, v in c.params.items()})
-    if c.holds == "非空":
-        return bool(result)
-    if c.holds == "为空":
-        return not result
-    if c.holds and c.holds.startswith("包含"):   # 如「包含该候选人邮箱」
-        return email.lower() in {str(x).lower() for x in result}
+    if check.timing is not None:                 # 纯时间检查：不碰飞书
+        return since_days(entry, today) >= (check.timing.get("天数") or 0)
+    out = engine.call(check.definition, 候选人={"邮箱": who}, **context)
+    values = {v.lower() for v in out.values}
+    if check.holds == "非空":
+        return bool(out.values or out.rows)
+    if check.holds == "为空":
+        return not (out.values or out.rows)
+    if check.holds and check.holds.startswith("包含"):   # 如「包含该候选人邮箱」
+        return who.lower() in values
     return False
 
 
-def _perform(cap, mig: Migration, email: str):
-    if mig.action is None:
-        return None
-    fn = getattr(cap, mig.action.capability, None)
-    if fn is None:
-        raise RuntimeError(f"迁移 {mig.from_state}→{mig.to_state} 的动作里没有能力"
-                           f"「{mig.action.capability}」")
-    return fn(**{k: _render(v, email) for k, v in mig.action.params.items()})
+def _perform(engine, mig: Migration, who: str, context: dict) -> str:
+    out = engine.call(mig.action.definition, 候选人={"邮箱": who}, **context)
+    if out.single:
+        return "，".join(str(v) for v in out.single.values() if v)
+    return "，".join(out.values)
 
 
-def advance(cap, flow: Flow, state: dict, today: str | None = None,
+def advance(engine, flow: Flow, state: dict, context: dict, today: str | None = None,
             step_only: bool = False) -> Report:
     """推一轮：系统执行且检查成立的推过去（动作先做，失败不挪格），人/半自动记待办。"""
     today = today or date.today().isoformat()
@@ -218,13 +211,13 @@ def advance(cap, flow: Flow, state: dict, today: str | None = None,
                 report.todos.append(Todo(who, entry["state"], mig.to_state, mig.trigger,
                                          mig.executor))
                 continue
-            if not _holds(cap, mig, who, entry, today):
-                label = (mig.check.capability or ("计时" if mig.check.timing else "无检查")
+            if not _holds(engine, mig, who, entry, today, context):
+                label = (mig.check.definition or ("计时" if mig.check.timing else "无检查")
                          if mig.check else "无检查")
                 report.waiting.append((who, f"{mig.from_state}→{mig.to_state}",
                                        f"检查不成立（{label}）"))
                 continue
-            result = _perform(cap, mig, who)
+            result = _perform(engine, mig, who, context)
             entry["state"], entry["since"] = mig.to_state, today
             entry.setdefault("trail", []).append(mig.to_state)
             effect = f"{mig.effect}：{result}" if (mig.effect and result) else \

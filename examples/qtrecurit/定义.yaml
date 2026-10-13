@@ -1,0 +1,88 @@
+# 定义：我们的话 → 一串飞书活动（每个活动 = 一个基础单元的动作）
+#
+# 左边这栏（读投递邮件 / 看谁进群了 / 发问卷调研）是量潮的说法，写在这里；
+# 右边展开的每一步都是飞书的基础单元动作，跑的时候由串联器照着做。
+# 流程（recruitment.yaml）里的「检查 / 动作」写的就是这张表里的名字——流程不认识飞书，
+# 只认识定义；定义才认识飞书。
+#
+# 写法：
+#   步骤:  一步 = 基础单元的动作 + 参数；参数里可以写 {{选择器}}
+#          as: 给这一步的产出起名，后面的步骤能取用（{{摘要.messages[].message_id}}）
+#   出:    行: 哪一段是行；字段: 每行按什么起名（左＝我们的话，右＝飞书的字段名）
+#          选择器 a.b 逐层取、a[].b 逐个取、a.英文|a.中文 取第一个取得到的
+#   增量:  比: 哪个字段——只留比游标新的，游标取这批里最新的值（游标由调用方保管）
+#
+# 值都不写死：邮箱、群、表格都在上下文里（{{邮箱}} 来自流程的收集节，其余留空则由
+# 基础单元从环境变量取——见 src/feishu/resources/backend_cli.py）。
+
+定义:
+  - 名称: 读投递邮件
+    说明: 一个文件夹里的投递：先列摘要拿 id，再按 id 取正文
+    步骤:
+      - 动作: mail_list
+        参数: {mailbox: "{{邮箱}}", folder: "{{文件夹}}", page_size: 400}
+        as: 摘要
+      - 动作: mail_messages
+        参数: {mailbox: "{{邮箱}}", message_ids: "{{摘要.messages[].message_id}}"}
+        as: 正文
+    出:
+      行: 正文.messages
+      字段:
+        message_id: message_id
+        主题: subject
+        发件人: head_from.mail_address
+        日期: date_formatted
+        正文: body_plain_text
+        附件: "attachments[].filename"
+    增量: {比: 日期}
+
+  - 名称: 看谁进群了
+    说明: 实训基地群的成员，按邮箱
+    步骤:
+      - 动作: im_chat_members
+        参数: {chat_id: "{{群}}"}
+        as: 成员
+    出:
+      行: 成员.users
+      字段: {邮箱: member_id, 姓名: name}
+
+  - 名称: 查调研记录
+    说明: 按邮箱查多维表格「调研」表里的记录
+    步骤:
+      - 动作: base_records
+        参数:
+          filter_json:
+            logic: and
+            conditions:
+              - [邮箱, intersects, "{{邮箱列表}}"]
+        as: 记录
+    出:
+      行: 记录.items
+      字段:
+        邮箱: "fields.email|fields.邮箱"
+        提交时间: "fields.submitted_at|fields.提交时间"
+        记录: record_id
+
+  - 名称: 发群二维码
+    说明: 给候选人发实训基地群的二维码（附件）
+    步骤:
+      - 动作: mail_send
+        参数:
+          mailbox: "{{邮箱}}"
+          to: "{{候选人.邮箱}}"
+          subject: 量潮实训基地 · 群二维码
+          body: 你好，扫码直接进群（群二维码见附件）。
+          attachments:
+            - "{{附件目录}}/群二维码.png"
+    出: {字段: {邮件id: message_id}}
+
+  - 名称: 发问卷调研
+    说明: 入群后把问卷发给候选人
+    步骤:
+      - 动作: mail_send
+        参数:
+          mailbox: "{{邮箱}}"
+          to: "{{候选人.邮箱}}"
+          subject: 量潮招聘 · 准入问卷
+          body: 请填写问卷：…
+    出: {字段: {邮件id: message_id}}

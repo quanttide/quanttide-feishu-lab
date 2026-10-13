@@ -1,35 +1,44 @@
-"""飞书能力层（主线）：流程要用的四个飞书动作，一处契约两种后端。
+"""飞书能力：基础单元 + 串联器。两样东西，各说各的话。
 
-    client.py     契约与实现：Mail / SurveyRecord / Feishu（四个动作）+ 负载映射
-    resources/    资源层：六资源十三动作 + 原样落盘——动作登记就是契约，按飞书资源分文件
+    resources/    基础单元：六资源十三个动作——飞书有什么、怎么取、怎么原样落盘
+    engine.py     串联器：读定义（配置），把定义展开成一串基础单元的活动
+    store.py / backend_cli.py / backend_inprocess.py   落盘与两个后端
 
-这里的 ``mock()`` / ``real()`` 换的是**资源层后端**（同进程假 CLI / lark-cli 子进程），
-流程与执行器代码一行不动。
+定义（我们的话 → 一串飞书活动）与流程（状态、迁移）都是配置，放在用它的场景那一侧
+（见 ``examples/qtrecurit/``）：这里不认识招聘、也不认识任何业务。
+
+``mock_backend()`` / ``real_backend()`` 只换**基础单元的后端**：同一条定义，换成假 CLI
+或真 lark-cli，跑出来的形状一样。
 """
 
 from __future__ import annotations
 
-from .client import Feishu, Mail, SurveyRecord, since, to_mail, to_survey  # noqa: F401
+from . import engine, resources  # noqa: F401
+from .engine import Definition, Engine, Outcome  # noqa: F401
+from .resources import ACTIONS, Action, Attachment, Page, pull  # noqa: F401
 
-__all__ = ["Feishu", "Mail", "SurveyRecord", "since", "to_mail", "to_survey", "mock", "real"]
+__all__ = ["Engine", "Definition", "Outcome", "load_definitions", "mock_backend", "real_backend",
+           "resources", "engine", "ACTIONS", "Action", "Attachment", "Page", "pull"]
 
 
-def mock(fixtures_dir: str) -> Feishu:
-    """测试替身：资源层走夹具，读写都不碰外网，确定性、可断言。"""
-    from .client import Feishu
+def load_definitions(path: str) -> dict[str, Definition]:
+    """读定义表（我们的话 → 一串飞书活动）。"""
+    return engine.load(path)
+
+
+def mock_backend(fixtures_dir: str):
+    """基础单元的测试后端：同进程跑假 CLI，读写都不碰外网，确定性、可断言。"""
     from .resources.backend_inprocess import InProcessBackend
 
-    return Feishu(InProcessBackend(None, fixtures_dir))
+    return InProcessBackend(None, fixtures_dir)
 
 
-def real(*, mailbox: str = "me", attachments_dir: str = "", **ids) -> Feishu:
-    """真飞书客户端：资源层子进程调 lark-cli（canonical 实现）。
+def real_backend(**ids):
+    """基础单元的真后端：子进程调 lark-cli。
 
-    资源 id 由 ``mailbox`` 与 ``ids`` 给（缺省走环境变量），缺省值是占位符——
-    够 mock 用，打真飞书会明确报错，不会静默。
+    资源位置（邮箱、群、表格）由 ``ids`` 或环境变量给（``LARK_MAILBOX`` / ``LARK_CHAT_ID`` /
+    ``LARK_BASE_TOKEN`` / ``LARK_TABLE_ID``）；缺省值是占位符——够 mock 用，打真飞书会明确报错。
     """
-    from .client import Feishu
     from .resources.backend_cli import CLIBackend
 
-    res = CLIBackend(None, mailbox=None, **ids)
-    return Feishu(res, mailbox=mailbox or res.location("mailbox"), attachments_dir=attachments_dir)
+    return CLIBackend(None, **ids)

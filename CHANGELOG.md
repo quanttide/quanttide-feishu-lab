@@ -4,33 +4,32 @@
 
 ### Added
 
-- 资源层：六资源十三动作（mail / im / vc / task / doc / base），两个后端（同进程假 CLI、lark-cli
-  子进程），每取一页落一份原样响应 —— `src/feishu/resources/`
-- 落盘契约：`raw/<资源>/<动作>/<页序>.json` 原样响应、`raw/mail/attachments/<附件id>/<原文件名>`、
-  `cursor/<资源>.json` 游标（整段拉完才前进）—— `resources/store.py`
-- 冒烟：一份入口 `tests/smoke.py`（能力层 13 动作 × 录制负载、落盘契约、示例端到端、假 CLI 的
-  CLI 面），89 项；重新录制负载用 `--record`
-- 测试设施收进 `tests/`：夹具、假 `lark-cli`（`tests/fake_lark_cli/`）、冒烟（`tests/smoke.py`）
-- 假 lark-cli 扩到 15 条命令（im / vc / task / drive / docs / 附件下载），表输出收成一份渲染
-  （`envelope.table_of`），并补上 `--format markdown`
-- 夹具：`im/`、`vc/`、`task/`、`drive/` 四类资源夹具 + `snapshots/resources.json` 录制负载
+- **基础单元**（`src/feishu/resources/`）：六资源十三动作（mail / im / vc / task / doc / base），
+  两个后端（同进程假 CLI、lark-cli 子进程），按飞书资源分文件，动作登记就是契约——
+  命令、参数、必填、落盘名各写一处
+- **落盘契约**（`resources/store.py`）：`raw/<资源>/<动作>/<页序>.json` 原样响应（含 ok/data 信封）、
+  `raw/mail/attachments/<附件id>/<原文件名>`、`cursor/<资源>.json` 游标（整段拉完才前进）
+- **串联器**（`src/feishu/engine.py`）：读定义（配置），把定义展开成一串基础单元的活动——
+  参数模板（含「上一步的输出喂给下一步」）、按定义把产出起成我们的话、增量游标
+- 假 `lark-cli`（`tests/fake_lark_cli/`，15 条命令）与夹具；基础单元负载的录制快照
+  （`tests/fixtures/snapshots/resources.json`）
+- 冒烟一份入口（`tests/smoke.py`，95 项）：基础单元 × 录制负载、落盘契约、定义端到端、
+  示例跑通、假 CLI 的 CLI 面；重新录制负载用 `--record`
+- 示例 `examples/qtrecurit/`：招聘场景的两份配置（`recruitment.yaml` 流程、`定义.yaml` 定义）
+  加执行器（`flow.py` / `run.py`）
 - 能力清单与落盘契约文档 —— `docs/capabilities.md`
 
 ### Changed
 
-- 资源层按飞书资源分文件：`mail.py` / `im.py` / `vc.py` / `task.py` / `doc.py` / `base.py` 各写自己的
-  动作登记，`action.py` 只提供登记的形状与参数 → argv——**动作登记就是契约**，删掉逐一写的
-  13 个签名与 13 个转发方法（动作名即方法名）；命令怪癖（folder 包 JSON、`--no-reactions`、
-  `html=false`）回到需要它的那个资源文件里，不再共用一套改写名
-- 能力层契约与实现合成一个 `client.py`；两个后端按"跑在哪"命名（`backend_cli` / `backend_inprocess`）
-
-- 主线独立：能力层成 `src/feishu/`（契约 `contract.py` / 实现 `client.py` / 资源层 `resources/`）；
-  契约与门面分开；两个后端按边界命名（`backend_cli.py` 子进程 / `backend_inprocess.py` 同进程）；
-  假 CLI 包改名 `tests/fake_lark_cli/`（名字自证是假 CLI）
-- 招聘流程收成**示例** `examples/qtrecurit/`：流程定义 `recruitment.yaml`、模型+状态+推格 `flow.py`、
-  入口 `run.py`——四个模块合成两个，不再与能力层同层；端到端对照（换后端不换流程）挂在冒烟第 7 段
-- 精简重复：命令声明表生成 USAGE / HELP / SPECS、夹具形状规则一份（`fake_lark_cli/fixtures.py`）、
-  能力层实现收成一个类、资源层动作表驱动两个后端、三处冒烟入口合成一处
+- 定义（我们的话 → 一串飞书活动）与流程（状态、迁移）都写成配置，放在用它的场景那一侧；
+  `src/` 只剩两样：基础单元与串联器
+- 三层各说各的话：流程只认定义名，定义才认飞书动作，基础单元只认飞书坐标——换后端
+  （夹具 ↔ 真飞书）不动定义与流程，改流程不动代码
+- 基础单元按其资源分文件、动作登记就是契约：没有第二处签名，两个后端不逐一写方法（动作名即方法名）；
+  命令怪癖（folder 包 JSON、`--no-reactions`、`html=false`）写在需要它的那个资源文件里
+- 两个后端按「跑在哪」命名（`backend_cli` 子进程 / `backend_inprocess` 同进程），
+  由 `mock_backend()` / `real_backend()` 交给串联器
+- 测试设施收进 `tests/`：夹具、假 `lark-cli`、冒烟
 
 ## [0.0.1] - 2026-10-11
 

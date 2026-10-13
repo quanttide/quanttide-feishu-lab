@@ -1,18 +1,20 @@
-# 资源层：六资源十三动作（设计与契约）
+# 基础单元：六资源十三动作（设计与契约）
 
 这一页定两件事：**能力清单**（飞书有哪些东西、按什么拿）与**落盘契约**（拿回来的东西怎么写下来）。
-判据全部可跑：`PYTHONPATH=src python3 tests/smoke.py`（94 项：资源层 63 + 能力层 13 + 示例 5 + 假 CLI 的 CLI 面 13）。
+基础单元是这一层的说法——飞书有什么就有什么；至于"一句话怎么变成一串基础单元的动作"，
+是上一层**定义**的事（写在用它的场景里，见 `examples/qtrecurit/定义.yaml`）。
+判据全部可跑：`PYTHONPATH=src .venv/bin/python tests/smoke.py`（95 项：基础单元 63 + 定义 14 + 示例 5 + 假 CLI 的 CLI 面 13）。
 
 ## 一、为什么要单独一层
 
-流程能力（`feishu/client.py`：读邮件、读群成员、读调研表、发邮件）说的是**流程要用什么**，
-带业务语义；资源层说的是**飞书有什么**，只有飞书坐标。分开的好处是：抓取与落盘只写一遍，
+定义（`定义.yaml`：读投递邮件、看谁进群了、发群二维码…）说的是**我们的话**——一句话里带着
+我们的需求；基础单元说的是**飞书有什么**，只有飞书坐标。分开的好处是：抓取与落盘只写一遍，
 业务场景（招聘、治理、财务）各自去读同一份数据，不再各写一套抓取脚本。
 
 | 层 | 说什么 | 参数里有什么 | 谁用 |
 | :-- | :-- | :-- | :-- |
-| 流程能力 | 流程要用到什么 | 业务概念（候选人邮箱、群） | 执行器 runner |
-| **资源层** | 飞书有什么 | 只有飞书坐标（mailbox、chat_id、meeting_id、since） | 收集与场景脚本 |
+| 定义 | 我们的话（一句话 → 一串活动） | 我们的概念（候选人邮箱、文件夹、群） | 串联器 |
+| **基础单元** | 飞书有什么 | 只有飞书坐标（mailbox、chat_id、meeting_id、since） | 定义 |
 
 ## 二、能力清单（十三动作）
 
@@ -78,15 +80,15 @@
 
 | 实现 | 形态 | 怎么用 |
 | :-- | :-- | :-- |
-| `resources/backend_inprocess.py` | 同进程跑假 `lark-cli`（不 fork、不依赖 PATH） | 示例 `--mock`：确定性自测与断言 |
-| 流程能力层（`feishu/client.py`） | 包一个资源层客户端（夹具 / lark-cli 皆可） | 上面的 `mock()` / `real()` 工厂 |
+| `resources/backend_inprocess.py` | 同进程跑假 `lark-cli`（不 fork、不依赖 PATH） | 定义与示例的 `--mock`：确定性自测与断言 |
 | `resources/backend_cli.py` | 子进程调 `lark-cli` | `PATH` 前面放 `tests/fake_lark_cli/bin` 即离线；放真 CLI 即打真飞书 |
+| `__init__.py` 的 `mock_backend()` / `real_backend()` | 造上面两个后端 | 场景把后端交给串联器：`Engine(backend, 定义)` |
 
 负载对着**录制快照**（`tests/fixtures/snapshots/resources.json`）比，两条路都要对上；改坏形状就红。
-重新录制：`PYTHONPATH=src python3 tests/smoke.py --record`。
+重新录制：`PYTHONPATH=src .venv/bin/python tests/smoke.py --record`。
 
 ## 六、不做什么
 
 - 不聚合、不分类、不按月切、不删字段（`--no-reactions` 这类取舍由调用方显式要求）。
 - 不在资源层写业务判断：谁是候选人、哪封信是投递，是场景的事。
-- 不为每个场景写一套抓取脚本：场景读 `raw/`，或调这张表里的动作。
+- 不为每个场景写一套抓取脚本：场景读 `raw/`，或把这几条动作用定义串起来。

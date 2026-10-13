@@ -2,14 +2,15 @@
 
 跑法（在实验室根目录）：
 
-    PYTHONPATH=src python3 tests/smoke.py            # 两段都跑
-    PYTHONPATH=src python3 tests/smoke.py --record   # 重新录制资源层负载快照
+    PYTHONPATH=src .venv/bin/python tests/smoke.py            # 全部跑
+    PYTHONPATH=src .venv/bin/python tests/smoke.py --record   # 重新录制基础单元负载快照
 
 三段判据，全部可跑：
 
 1. **资源层**：六资源十三动作取得到东西；负载与录制快照（``tests/fixtures/snapshots/resources.json``）
    一致——同进程假 CLI 与子进程假 CLI 两条路都要对上；落盘契约成立；源码里没有具体值。
-2. **能力层**：四个动作取得到东西（漂移与 Spam 两处卡点也算得出来）；换成子进程后端结果一致。
+2. **定义**：我们的话（读投递邮件 / 看谁进群了 / 查调研记录 / 发群二维码）跑成一串飞书活动，
+   带游标、带附件；换成子进程后端结果一致。
 3. **示例 `examples/qtrecurit`**：流程写成 YAML，端到端跑通（重建状态、推一步、缺凭据明确报错）。
 4. **假 lark-cli 的 CLI 面**：经 PATH 遮蔽调它，核信封、退出码、翻页、``--jq`` / ``--dry-run``。
 
@@ -30,13 +31,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-import feishu as cap  # noqa: E402
+import feishu  # noqa: E402
 from feishu.resources import pull  # noqa: E402
 from feishu.resources.backend_inprocess import InProcessBackend  # noqa: E402
 from feishu.resources.backend_cli import CLIBackend  # noqa: E402
 from feishu.resources.store import RawStore  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
+DEFINITIONS = ROOT / "examples" / "qtrecurit" / "定义.yaml"
 MOCK_BIN = ROOT / "tests" / "fake_lark_cli" / "bin"
 PYTHON = ROOT / ".venv" / "bin" / "python"
 SNAPSHOT = FIXTURES / "snapshots" / "resources.json"
@@ -45,6 +47,9 @@ FOLDERS = ["收件箱", "已发送问卷", "沟通面试中", "Spam"]     # 对�
 # 值全部由调用方给：能力层不认识这些是什么
 CHAT, PEER, MEETING, MAILBOX = "oc_mock_chat", "ou_mock_peer", "7654321098765432109", "hr@example.com"
 DOC, MAIL_ID = "docxmock0001", "m-001"
+# 夹具里的六位虚构候选人（收件箱四位 + 沟通面试中一位 + 被误判进 Spam 一位）
+PEOPLE = sorted(["chenmo@example.com", "herui@example.com", "linyizhou@example.com",
+                 "suxiao@example.com", "zhengnan@example.com", "zhouyan@example.com"])
 
 PASS = FAIL = 0
 
@@ -139,43 +144,60 @@ def smoke_resources(store_dir: Path) -> None:
               f"{hard_id and hard_id.group(0)} {hard_mail and hard_mail.group(0)}")
 
 
-def smoke_capability_layer() -> None:
-    """能力层：四个动作取得到东西（含漂移与 Spam 两处卡点）+ 换成子进程后端结果一致。"""
-    c = cap.mock(str(FIXTURES))
-    print("\n── 5. 能力层：读邮件（按文件夹，带游标）")
+def definitions_of(backend) -> dict:
+    """定义跑出来的东西：mock 与子进程两条路共用这一份，用来互比。"""
+    eng = feishu.Engine(backend, feishu.load_definitions(str(DEFINITIONS)))
+    out: dict = {}
+    for folder in FOLDERS:
+        out[f"读投递邮件·{folder}"] = eng.call("读投递邮件", 邮箱=MAILBOX, 文件夹=folder).rows
+    out["查调研记录"] = eng.call("查调研记录", 邮箱列表=PEOPLE).rows
+    out["看谁进群了"] = eng.call("看谁进群了", 群=CHAT).rows
+    out["发群二维码"] = [eng.call("发群二维码", 邮箱=MAILBOX, 候选人={"邮箱": "new@example.com"},
+                                 附件目录=str(FIXTURES / "attachments")).single]
+    return out
+
+
+def smoke_definitions() -> None:
+    """定义：我们的话跑成一串飞书活动——带游标、带附件、换成子进程后端结果一致。"""
+    defs = feishu.load_definitions(str(DEFINITIONS))
+    mock_backend = feishu.mock_backend(str(FIXTURES))
+    eng = feishu.Engine(mock_backend, defs)
+    print("\n── 5. 定义：读投递邮件（按文件夹，带游标）")
     applications: dict[str, str] = {}
     drift: list[str] = []
     spammy: list[str] = []
     for folder in FOLDERS:
-        mails, cursor = c.read_mail(folder)
-        mails2, _ = c.read_mail(folder, cursor)          # 游标再拉一次应无新件
-        check(f"{folder}: {len(mails)} 封，再拉 {len(mails2)} 封", not mails2)
-        for m in mails:
-            if not m.sender:
+        out = eng.call("读投递邮件", 邮箱=MAILBOX, 文件夹=folder)
+        again = eng.call("读投递邮件", 邮箱=MAILBOX, 文件夹=folder, 游标=out.cursor)
+        check(f"{folder}: {len(out.rows)} 封，带游标再拉 {len(again.rows)} 封", not again.rows)
+        for row in out.rows:
+            who = str(row.get("发件人") or "").lower()
+            if not who:
                 continue
             if folder == "收件箱":
-                applications.setdefault(m.sender.lower(), m.date)
+                applications.setdefault(who, str(row.get("日期") or ""))
             elif folder == "沟通面试中":
-                drift.append(m.sender.lower())
+                drift.append(who)
             elif folder == "Spam":
-                spammy.append(m.sender.lower())
+                spammy.append(who)
     check(f"漂移（只出现在沟通面试中）：{drift}；误判（在 Spam）：{spammy}", bool(drift) and bool(spammy))
 
     people = sorted(set(list(applications) + drift + spammy))
-    records, members = c.read_survey(people), c.read_group_members()
-    qr_to, qr_subject = "chenmo@example.com", "量潮实训基地 · 群二维码"
-    qr_body, qr_attach = "你好，扫码直接进群（群二维码见附件）。", ["群二维码.png"]
-    mid = c.send_mail(qr_to, qr_subject, qr_body, qr_attach)
-    check(f"调研表命中 {len(records)} 人 / 群成员 {len(members)} 人 / 发出群二维码 {bool(mid)}",
-          bool(records) and bool(members) and bool(mid))
+    check("文件夹里读出来的就是这六位", people == PEOPLE, str(people))
+    records = eng.call("查调研记录", 邮箱列表=PEOPLE).rows
+    members = eng.call("看谁进群了", 群=CHAT).rows
+    mail = eng.call("发群二维码", 邮箱=MAILBOX, 候选人={"邮箱": "new@example.com"},
+                    附件目录=str(FIXTURES / "attachments"))
+    check(f"调研表命中 {len(records)} 人 / 群成员 {len(members)} 人 / 发出群二维码 "
+          f"{bool(mail.single.get('邮件id'))}",
+          bool(records) and bool(members) and bool(mail.single.get("邮件id")))
 
-    cli_cap = cap.real(attachments_dir=str(FIXTURES / "attachments"))
-    print("\n── 6. 能力层：换成子进程后端，结果一致")
-    for folder in FOLDERS:
-        check(f"read_mail({folder})", c.read_mail(folder) == cli_cap.read_mail(folder))
-    check("read_survey", records == cli_cap.read_survey(people))
-    check("read_group_members", members == cli_cap.read_group_members())
-    check("send_mail", mid == cli_cap.send_mail(qr_to, qr_subject, qr_body, qr_attach))
+    cli_backend = feishu.real_backend(mailbox=MAILBOX, chat_id=CHAT)
+    print("\n── 6. 定义：换成子进程后端，结果一致")
+    want, got = definitions_of(mock_backend), definitions_of(cli_backend)
+    for key, expected in want.items():
+        check(key, got.get(key) == expected,
+              f"实际 {str(got.get(key))[:120]}\n      期望 {str(expected)[:120]}")
 
 
 def smoke_example() -> None:
@@ -298,7 +320,7 @@ def main() -> int:
     try:
         smoke_resources(store_dir)
         if "--record" not in sys.argv:
-            smoke_capability_layer()
+            smoke_definitions()
             smoke_example()
             smoke_cli_surface()
         print(f"\n通过 {PASS}，失败 {FAIL}")
