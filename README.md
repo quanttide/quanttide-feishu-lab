@@ -31,9 +31,9 @@ PATH 前面放 `tests/fake_lark_cli/bin` 就是离线的假 CLI（读同一批 `
 
 | 路径 | 是什么 |
 | :-- | :-- |
-| `src/feishu/` | **主线**：飞书能力层。`contract.py` 契约（四个动作）、`client.py` 实现（包一个资源层后端） |
-| `src/feishu/resources/` | 资源层：`contract.py` 十三个动作的契约、`actions.py` 动作表、`backend_cli.py` / `backend_inprocess.py` 两个后端、`store.py` 落盘 |
+| `src/feishu/` | **主线**：飞书能力层。`client.py` 契约与实现（四个动作 + 流程数据类）、`__init__.py` 门面（`mock()` / `real()`） |
+| `src/feishu/resources/` | 资源层：按飞书资源分文件的动作登记（`mail.py` / `im.py` / `vc.py` / `task.py` / `doc.py` / `base.py`）、`action.py` 登记的形状、`backend_cli.py` / `backend_inprocess.py` 两个后端、`store.py` 落盘 |
 | `examples/qtrecurit/` | **示例**：招聘流程——`recruitment.yaml` 流程定义、`flow.py` 模型+状态+推格、`run.py` 入口 |
 | `tests/` | **测试设施**：`fixtures/` 夹具与录制负载、`fake_lark_cli/` 假 `lark-cli`（遮蔽真 CLI）、`smoke.py` 唯一冒烟入口（89 项） |
-| `docs/capabilities.md` | 主线：能力清单与落盘契约（逐字对应 `resources/actions.py`） |
+| `docs/capabilities.md` | 主线：能力清单与落盘契约（逐字对应 `resources/` 里六个资源文件的登记） |
 | `docs/runner.md` | 示例的设计由来：流程为什么要写成数据、检查与动作各是什么 |

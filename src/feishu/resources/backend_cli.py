@@ -3,10 +3,11 @@
 同一份代码两种活法，差别只在 PATH：
 
     PATH 前面放 tests/fake_lark_cli/bin  → 假 lark-cli，读 tests/fixtures/，离线
-    PATH 里是真 lark-cli           → 打真飞书
+    PATH 里是真 lark-cli                 → 打真飞书
 
-命令只写在 ``ACTIONS`` 这张表里（动作 → 资源 / 固定命令段 / 参数名 / flag 与值的改写），
-拼 argv、解信封、落盘由 ``_call`` 一次做完。加一个动作 = 表里加一行 + 契约里加一个方法。
+命令怎么写只由各资源的登记决定（``mail.py`` / ``im.py`` / …）：拼 argv、跑子进程、解信封、
+落盘由 ``_call`` 一次做完。十三个动作不在这里逐一写转发——**动作名即方法名**（``__getattr__``
+按登记生成），加一个动作只改它所属的资源文件。
 
 值全部从参数与环境来，代码里不写任何邮箱、群 id、人名、关键词：
 
@@ -21,9 +22,14 @@ import subprocess
 import urllib.request
 from urllib.parse import urlparse
 
-from ..resources import Attachment, Page
-from .actions import ACTIONS, TASK_COMMAND, emit_arg
-from ..resources.store import RawStore
+from . import ACTIONS
+from .action import Attachment, Page
+from .store import RawStore
+
+# 资源位置参数：调用方没给就用本实例的（构造参数或环境变量）——缺省值不进代码
+LOCATION = {"mailbox": "LARK_MAILBOX", "chat_id": "LARK_CHAT_ID",
+            "base_token": "LARK_BASE_TOKEN", "table_id": "LARK_TABLE_ID"}
+
 
 def _extract_json(text: str) -> dict | None:
     """从输出里抠 JSON。真 lark-cli 会在 JSON 前后打进度行，直接 loads 会失败。"""
@@ -41,17 +47,33 @@ def _extract_json(text: str) -> dict | None:
 
 
 class CLIBackend:
-    """资源层契约的 lark-cli 实现：命令在 ACTIONS 表里，落盘走 RawStore。"""
+    """资源层契约的 lark-cli 实现：命令在各资源的登记里，落盘走 RawStore。"""
 
     def __init__(self, store_root: str | None = None, *, lark_cli: str | None = None,
                  mailbox: str | None = None, base_token: str | None = None,
                  table_id: str | None = None, chat_id: str | None = None) -> None:
         self.store = RawStore(store_root) if store_root else None
         self.lark_cli = lark_cli or os.environ.get("LARK_CLI", "lark-cli")
-        self.mailbox = mailbox or os.environ.get("LARK_MAILBOX", "me")
-        self.base_token = base_token or os.environ.get("LARK_BASE_TOKEN", "mock-base-token")
-        self.table_id = table_id or os.environ.get("LARK_TABLE_ID", "mock-table-id")
-        self.chat_id = chat_id or os.environ.get("LARK_CHAT_ID", "oc_mock_chat")
+        self.lark_mailbox = mailbox or os.environ.get("LARK_MAILBOX", "me")
+        self.lark_base_token = base_token or os.environ.get("LARK_BASE_TOKEN", "mock-base-token")
+        self.lark_table_id = table_id or os.environ.get("LARK_TABLE_ID", "mock-table-id")
+        self.lark_chat_id = chat_id or os.environ.get("LARK_CHAT_ID", "oc_mock_chat")
+
+    # ── 动作名即方法名 ────────────────────────────────────
+    def __getattr__(self, name: str):
+        """登记里有的动作才有方法：十三个都不逐一写转发。"""
+        action = ACTIONS.get(name)
+        if action is None:
+            raise AttributeError(name)
+
+        def call(**params) -> Page:
+            return self._call(name, **params)
+
+        return call
+
+    def location(self, name: str) -> str:
+        """本实例给这个资源位置参数的值。"""
+        return getattr(self, f"lark_{name}")
 
     # ── 内部 ──────────────────────────────────────────────
     def _run(self, *args: str) -> tuple[dict, dict]:
@@ -80,24 +102,24 @@ class CLIBackend:
                     has_more=bool(data.get("has_more")), page_token=data.get("page_token") or "",
                     raw=raw)
 
-    def _call(self, action: str, *, argv: tuple[str, ...] | None = None,
-              land: str | None = None, **params) -> Page:
-        """按表拼 argv：固定命令段 + 各参数 + --format json，再跑、再落盘。"""
-        resource, landing, command, names, flag_of, mode = ACTIONS[action]
-        unknown = set(params) - set(names)
+    def _call(self, name: str, **params) -> Page | list[Attachment]:
+        """校验参数 → 拼 argv → 跑 → 落盘。附件那类动作再往下取字节。"""
+        action = ACTIONS[name]
+        allowed = set(action.params) | ({action.variant_param} if action.variant_param else set())
+        unknown = sorted(set(params) - allowed)
         if unknown:
-            raise TypeError(f"{action} 不认识这些参数：{sorted(unknown)}")
-        # 资源位置没给就用本实例的（构造参数或环境变量）——缺省值不进代码
-        for key, fallback in (("mailbox", self.mailbox), ("chat_id", self.chat_id),
-                              ("base_token", self.base_token), ("table_id", self.table_id)):
-            if key in names and params.get(key) is None:
-                params[key] = fallback
-        args = list(argv or command)
-        for name in names:
-            emit_arg(args, name, params.get(name), flag_of, mode)
-        args += ["--format", "json"]
-        _, raw = self._run(*args)
-        return self._land(resource, land or landing, raw)
+            raise TypeError(f"{name} 不认识这些参数：{unknown}")
+        if action.needs_any and not any(params.get(k) for k in action.needs_any):
+            raise RuntimeError(f"{name} 需要 {' 或 '.join(action.needs_any)}")
+        for key in LOCATION:
+            if key in action.params and params.get(key) is None:
+                params[key] = self.location(key)
+        for key, value in action.defaults.items():
+            params.setdefault(key, value)
+        argv, landed = action.argv(params)
+        _, raw = self._run(*argv)
+        page = self._land(action.resource, landed, raw)
+        return self._download(page) if action.kind == "files" else page
 
     def _fetch_bytes(self, url: str) -> bytes:
         """download_url → 字节。file:// 与 https 一视同仁。"""
@@ -109,56 +131,8 @@ class CLIBackend:
         with urllib.request.urlopen(url) as resp:      # noqa: S310 (地址来自 lark-cli)
             return resp.read()
 
-    # ── 契约的十三个动作（签名与默认值见 resources/__init__.py 的契约）──
-    def mail_list(self, **kw):
-        return self._call("mail_list", **kw)
-
-    def mail_messages(self, **kw):
-        return self._call("mail_messages", **kw)
-
-    def mail_send(self, **kw):
-        return self._call("mail_send", **kw)
-
-    def im_chat_messages(self, **kw):
-        if not (kw.get("chat_id") or kw.get("user_id")):
-            raise RuntimeError("im_chat_messages 需要 chat_id 或 user_id")
-        return self._call("im_chat_messages", **kw)
-
-    def im_chat_members(self, **kw):
-        return self._call("im_chat_members", **kw)
-
-    def im_messages_search(self, **kw):
-        if not (kw.get("sender") or kw.get("at_chatter")):
-            raise RuntimeError("im_messages_search 需要 sender 或 at_chatter")
-        kw.setdefault("with_reactions", False)     # 契约默认：搜索不去表情
-        return self._call("im_messages_search", **kw)
-
-    def vc_meeting_search(self, **kw):
-        if not kw.get("participant_id"):
-            raise RuntimeError("vc_meeting_search 需要 participant_id")
-        return self._call("vc_meeting_search", **kw)
-
-    def vc_meeting_get(self, **kw):
-        return self._call("vc_meeting_get", **kw)
-
-    def task_list(self, scope="mine", **kw):
-        """三种取法共用一条动作，命令段按 scope 换、落盘目录也按 scope 分。"""
-        return self._call("task_list", argv=TASK_COMMAND[scope], land=scope, **kw)
-
-    def drive_search(self, **kw):
-        if not (kw.get("edited_since") or kw.get("created_since")):
-            raise RuntimeError("drive_search 需要 edited_since 或 created_since")
-        return self._call("drive_search", **kw)
-
-    def docs_fetch(self, **kw):
-        return self._call("docs_fetch", **kw)
-
-    def base_records(self, **kw):
-        return self._call("base_records", **kw)
-
-    def mail_attachment_download(self, **kw):
-        """附件是唯一要「取字节」的动作：先取地址，再把原件落到 attachments/。"""
-        page = self._call("mail_attachment_download", **kw)
+    def _download(self, page: Page) -> list[Attachment]:
+        """取附件原件：先取地址，再把字节落到 attachments/。"""
         landed: list[Attachment] = []
         for att in page.payload.get("attachments") or []:
             aid = att.get("attachment_id") or att.get("id") or ""

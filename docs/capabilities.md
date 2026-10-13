@@ -1,11 +1,11 @@
 # 资源层：六资源十三动作（设计与契约）
 
 这一页定两件事：**能力清单**（飞书有哪些东西、按什么拿）与**落盘契约**（拿回来的东西怎么写下来）。
-判据全部可跑：`PYTHONPATH=src python3 tests/smoke.py`（能力层 57 项 + 流程原型 18 项 + 假 CLI 的 CLI 面 14 项）。
+判据全部可跑：`PYTHONPATH=src python3 tests/smoke.py`（94 项：资源层 63 + 能力层 13 + 示例 5 + 假 CLI 的 CLI 面 13）。
 
 ## 一、为什么要单独一层
 
-流程能力（`feishu/__init__.py`：读邮件、读群成员、读调研表、发邮件）说的是**流程要用什么**，
+流程能力（`feishu/client.py`：读邮件、读群成员、读调研表、发邮件）说的是**流程要用什么**，
 带业务语义；资源层说的是**飞书有什么**，只有飞书坐标。分开的好处是：抓取与落盘只写一遍，
 业务场景（招聘、治理、财务）各自去读同一份数据，不再各写一套抓取脚本。
 
@@ -32,7 +32,10 @@
 | doc | `docs_fetch` | doc, detail, doc_format | `docs +fetch` |
 | base | `base_records` | base_token, table_id, filter_json, offset, limit | `base +record-list` |
 
-这张表与 `resources/actions.py` 逐字对应（表里一行 = 服务里一个动作）；
+这张表与 `src/feishu/resources/` 里的登记逐字对应（表里一行 = 一个资源文件里的一条 `Action`）；
+每一行的命令、参数、必填、落盘名都写在**它所属的那个资源文件**里（`mail.py` / `im.py` / `vc.py` /
+`task.py` / `doc.py` / `base.py`）——登记就是契约，没有第二处签名，两个后端也不逐一写方法；
+要加一个动作只改它所属的资源文件。
 十三个动作覆盖现有私有脚本对 lark-cli 的全部调用面（只有 `mail_send` 是写）；**不在这张表里的能力，需要时再补**——
 补的姿势是加一个动作，不是在场景脚本里自己拼命令。
 
@@ -75,7 +78,7 @@
 
 | 实现 | 形态 | 怎么用 |
 | :-- | :-- | :-- |
-| `resources/backend_inprocess.py` | 同进程跑假 `lark-cli`（不 fork、不依赖 PATH） | 流程原型 `--mock`：确定性自测与断言 |
+| `resources/backend_inprocess.py` | 同进程跑假 `lark-cli`（不 fork、不依赖 PATH） | 示例 `--mock`：确定性自测与断言 |
 | 流程能力层（`feishu/client.py`） | 包一个资源层客户端（夹具 / lark-cli 皆可） | 上面的 `mock()` / `real()` 工厂 |
 | `resources/backend_cli.py` | 子进程调 `lark-cli` | `PATH` 前面放 `tests/fake_lark_cli/bin` 即离线；放真 CLI 即打真飞书 |
 

@@ -1,23 +1,33 @@
-"""资源层（门面）：六资源十三动作，两个后端换来换去都是它。
+"""资源层（门面）：六资源十三个动作——动作登记就是契约，按飞书资源分文件。
 
-    contract.py            契约：Resources（十三个动作）+ Page / Attachment
-    actions.py             动作表：动作 → 资源 / 命令段 / 参数 / flag 改写
-    backend_cli.py         后端一：子进程调 lark-cli（canonical）
-    backend_inprocess.py   后端二：同进程跑假 lark-cli（离线、不依赖 PATH）
-    store.py               落盘：raw/<资源>/<动作>/<页序>.json + 游标 + 附件
+    mail.py / im.py / vc.py / task.py / doc.py / base.py   各资源的动作登记（命令、参数、必填、落盘名）
+    action.py         登记的形状：Action + Page / Attachment + 参数 → argv
+    backend_cli.py    后端一：子进程调 lark-cli（canonical）
+    backend_inprocess.py  后端二：同进程跑假 lark-cli（离线、不依赖 PATH）
+    store.py          落盘契约：raw/<资源>/<动作>/<页序>.json + 游标 + 附件
 
-载荷、命令、信封、字段归一化、落盘路径都只在这里与它的三个邻居里各写一遍；
-上层（``feishu/``）只调动作名。
+十三个动作的名字与参数只写在这些登记里——没有第二处签名，两个后端也不逐一写方法
+（动作名即方法名）。加一个动作 = 改它所属的那个资源文件。
 """
 
 from __future__ import annotations
 
-from .contract import Attachment, Page, Resources
+from dataclasses import replace
 
-__all__ = ["Attachment", "Page", "Resources", "pull", "cli_backend", "inprocess_backend"]
+from . import base, doc, im, mail, task, vc
+from .action import Action, Attachment, Page
+
+_MODULES = (mail, im, vc, task, doc, base)
+ACTIONS: dict[str, Action] = {name: replace(action, resource=module.RESOURCE)
+                              for module in _MODULES for name, action in module.ACTIONS.items()}
+
+assert len(ACTIONS) == sum(len(m.ACTIONS) for m in _MODULES), "动作名重了：一张表只该有一个名字"
+
+__all__ = ["ACTIONS", "Action", "Attachment", "Page", "pull", "cli_backend", "inprocess_backend"]
+
 
 # ── 分页：一份实现 ────────────────────────────────────────
-def pull(client: Resources, action: str, *, cursor_key: str | None = None,
+def pull(client, action: str, *, cursor_key: str | None = None,
          max_pages: int = 100, **kwargs) -> list[Page]:
     """把某个动作拉到底：一页一页取，每页已由实现落盘，最后推游标。
 
@@ -38,13 +48,13 @@ def pull(client: Resources, action: str, *, cursor_key: str | None = None,
     return pages
 
 
-def inprocess_backend(store_root: str | None, fixtures_dir: str) -> Resources:
+def inprocess_backend(store_root: str | None, fixtures_dir: str):
     """同进程假 lark-cli：离线、不 fork、不依赖 PATH，落盘路径与真后端同一套。"""
     from .backend_inprocess import InProcessBackend
     return InProcessBackend(store_root, fixtures_dir)
 
 
-def cli_backend(store_root: str | None = None, **ids) -> Resources:
+def cli_backend(store_root: str | None = None, **ids):
     """子进程调 lark-cli（canonical 实现）。"""
     from .backend_cli import CLIBackend
     return CLIBackend(store_root, **ids)

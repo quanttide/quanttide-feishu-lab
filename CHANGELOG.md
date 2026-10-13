@@ -18,6 +18,12 @@
 
 ### Changed
 
+- 资源层按飞书资源分文件：`mail.py` / `im.py` / `vc.py` / `task.py` / `doc.py` / `base.py` 各写自己的
+  动作登记，`action.py` 只提供登记的形状与参数 → argv——**动作登记就是契约**，删掉逐一写的
+  13 个签名与 13 个转发方法（动作名即方法名）；命令怪癖（folder 包 JSON、`--no-reactions`、
+  `html=false`）回到需要它的那个资源文件里，不再共用一套改写名
+- 能力层契约与实现合成一个 `client.py`；两个后端按"跑在哪"命名（`backend_cli` / `backend_inprocess`）
+
 - 主线独立：能力层成 `src/feishu/`（契约 `contract.py` / 实现 `client.py` / 资源层 `resources/`）；
   契约与门面分开；两个后端按边界命名（`backend_cli.py` 子进程 / `backend_inprocess.py` 同进程）；
   假 CLI 包改名 `tests/fake_lark_cli/`（名字自证是假 CLI）
