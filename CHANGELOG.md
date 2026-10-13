@@ -4,7 +4,15 @@
 
 ### Added
 
-- **基础单元**（`src/feishu/resources/`）：六资源十三动作（mail / im / vc / task / doc / base），
+- 基础单元加第 14 个动作 `im_chat_link`（`im chats link`）：取群分享链接，可带 `validity_period`
+  （`week` / `year` / `permanently`，写进 `--data`）；夹具 `tests/fixtures/im/chat-link.json`
+  与假 CLI 的命令声明、handler 各加一处。判据 95 → 98 项；快照**重录过**——新增 `im_chat_link`
+  一项，其余各条逐项不变（契约真的变了，才动快照）。
+- 「发群二维码」定义改成两步：先 `im_chat_link` 取链接（`as: 链接`），再 `mail_send` 把
+  `{{链接.share_link}}` 填进正文模板。两条后端跑出来发出去的信里都带链接（查 outbox 证实）。
+  边界（实测）：`im chats link` 要**用户身份**；外部群机器人身份被拒（API 232033）。
+
+- **基础单元**（`src/feishu/resources/`）：六资源十四动作（mail / im / vc / task / doc / base），
   两个后端（同进程假 CLI、lark-cli 子进程），按飞书资源分文件，动作登记就是契约——
   命令、参数、必填、落盘名各写一处
 - **落盘契约**（`resources/store.py`）：`raw/<资源>/<动作>/<页序>.json` 原样响应（含 ok/data 信封）、

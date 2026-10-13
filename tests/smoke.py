@@ -7,7 +7,7 @@
 
 三段判据，全部可跑：
 
-1. **资源层**：六资源十三动作取得到东西；负载与录制快照（``tests/fixtures/snapshots/resources.json``）
+1. **资源层**：六资源十四动作取得到东西；负载与录制快照（``tests/fixtures/snapshots/resources.json``）
    一致——同进程假 CLI 与子进程假 CLI 两条路都要对上；落盘契约成立；源码里没有具体值。
 2. **定义**：我们的话（读投递邮件 / 看谁进群了 / 查调研记录 / 发群二维码）跑成一串飞书活动，
    带游标、带附件；换成子进程后端结果一致。
@@ -64,7 +64,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 def calls(client) -> dict:
-    """十三个动作的调用清单：录制与比对共用同一份，不许各写一套。"""
+    """十四个动作的调用清单：录制与比对共用同一份，不许各写一套。"""
     pages = lambda action, **kw: [p.payload for p in pull(client, action, **kw)]
     return {
         "mail_list": pages("mail_list", folder="收件箱", mailbox=MAILBOX, page_size=2),
@@ -76,6 +76,7 @@ def calls(client) -> dict:
         "im_chat_messages": pages("im_chat_messages", chat_id=CHAT, page_size=2),
         "im_chat_members": [client.im_chat_members(chat_id=CHAT).payload],
         "im_messages_search": [client.im_messages_search(sender=PEER).payload],
+        "im_chat_link": [client.im_chat_link(chat_id=CHAT).payload],
         "vc_meeting_search": [client.vc_meeting_search(participant_id=PEER).payload],
         "vc_meeting_get": [client.vc_meeting_get(meeting_id=MEETING).payload],
         "task_list_mine": [client.task_list(scope="mine", complete=False).payload],
@@ -90,7 +91,7 @@ def calls(client) -> dict:
 
 
 def smoke_resources(store_dir: Path) -> None:
-    """资源层：十三动作 + 录制负载 + 落盘契约 + 值不在代码里。"""
+    """资源层：十四动作 + 录制负载 + 落盘契约 + 值不在代码里。"""
     mock, cli = InProcessBackend(None, str(FIXTURES)), CLIBackend(str(store_dir), mailbox=MAILBOX,
                                                                  chat_id=CHAT)
     if "--record" in sys.argv:
@@ -100,7 +101,7 @@ def smoke_resources(store_dir: Path) -> None:
         return
     snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
 
-    print("── 1. 资源层：十三个动作")
+    print("── 1. 资源层：十四个动作")
     for name, value in calls(mock).items():
         check(name, bool(value) or value == [], f"{name} 空结果")
 

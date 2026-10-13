@@ -15,6 +15,8 @@ member_id_type=email——接真飞书时能力层要补一步 open_id → 邮�
 
 from __future__ import annotations
 
+import json
+
 from . import fixtures
 from .envelope import Result, table_of, usage_error
 
@@ -67,3 +69,19 @@ def messages_search(flags: dict) -> Result:
     payload = fixtures.read_optional("im", name) or {}
     return _paged(list(payload.get("items") or []), flags, key="items")
 
+
+
+def chats_link(flags: dict) -> Result:
+    """im chats link：回群分享链接（夹具一份；有 --data 就把请求体回显出来）。"""
+    if not flags.get("chat-id"):
+        usage_error('required flag(s) "chat-id" not set', param="--chat-id")
+    data = dict(fixtures.read_optional("im", "chat-link.json") or {})
+    if flags.get("data"):
+        try:
+            body = json.loads(flags["data"])
+        except json.JSONDecodeError:
+            usage_error("--data 要是 JSON", param="--data")
+        data.update({k: v for k, v in body.items() if k == "validity_period"})
+        if data.get("validity_period") == "permanently":
+            data["is_permanent"] = True
+    return Result(data, table=f"share_link: {data.get('share_link', '')}")

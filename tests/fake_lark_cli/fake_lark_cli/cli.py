@@ -169,6 +169,20 @@ COMMANDS: dict[str, Command] = {
         }),
         "mock 的 member_id 直接是邮箱（member_id_type=email）；真 CLI 是 open_id。",
     ),
+    "im chats link": Command(
+        "im chats link --chat-id <oc_xxx> [flags]",
+        "取群分享链接（tests/fixtures/im/chat-link.json）",
+        im_mod.chats_link,
+        _flags(**{
+
+            "chat-id": Flag("str", None, "必填"),
+            "data": Flag("str", None, "请求体 JSON，如 {\"validity_period\": \"permanently\"}"),
+            "as": Flag("str", "user", "身份 user | bot（mock 不看身份）"),
+            "format": Flag("str", "json", "json（默认）| table"),
+
+        }),
+        "mock 回一份夹具链接；真 CLI 要用户身份，外部群机器人身份会被拒（232033）。",
+    ),
     "im +chat-messages-list": Command(
         "im +chat-messages-list [--chat-id <oc_xxx> | --user-id <ou_xxx>] [flags]",
         "读群聊 / 单聊消息（tests/fixtures/im/）",

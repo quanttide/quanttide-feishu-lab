@@ -1,4 +1,4 @@
-# 基础单元：六资源十三动作（设计与契约）
+# 基础单元：六资源十四动作（设计与契约）
 
 这一页定两件事：**能力清单**（飞书有哪些东西、按什么拿）与**落盘契约**（拿回来的东西怎么写下来）。
 基础单元是这一层的说法——飞书有什么就有什么；至于"一句话怎么变成一串基础单元的动作"，
@@ -16,7 +16,7 @@
 | 定义 | 我们的话（一句话 → 一串活动） | 我们的概念（候选人邮箱、文件夹、群） | 串联器 |
 | **基础单元** | 飞书有什么 | 只有飞书坐标（mailbox、chat_id、meeting_id、since） | 定义 |
 
-## 二、能力清单（十三动作）
+## 二、能力清单（十四动作）
 
 | 资源 | 动作 | 参数（全部由调用方给） | lark-cli 命令 |
 | :-- | :-- | :-- | :-- |
@@ -27,6 +27,7 @@
 | im | `im_chat_messages` | chat_id 或 user_id, order, with_reactions, page_size | `im +chat-messages-list` |
 | im | `im_chat_members` | chat_id | `im +chat-members-list` |
 | im | `im_messages_search` | sender 或 at_chatter, chat_id, with_reactions | `im +messages-search` |
+| im | `im_chat_link` | chat_id, validity_period（week / year / permanently，写进请求体） | `im chats link`（写；**外部群要用户身份**） |
 | vc | `vc_meeting_search` | participant_id, start, end, page_size | `vc +search` |
 | vc | `vc_meeting_get` | meeting_id | `vc meeting get --with-participants true` |
 | task | `task_list` | scope（mine / related / tasklists）, complete | `task +get-my-tasks` / `+get-related-tasks` / `tasklists list` |
@@ -38,7 +39,7 @@
 每一行的命令、参数、必填、落盘名都写在**它所属的那个资源文件**里（`mail.py` / `im.py` / `vc.py` /
 `task.py` / `doc.py` / `base.py`）——登记就是契约，没有第二处签名，两个后端也不逐一写方法；
 要加一个动作只改它所属的资源文件。
-十三个动作覆盖现有私有脚本对 lark-cli 的全部调用面（只有 `mail_send` 是写）；**不在这张表里的能力，需要时再补**——
+十四个动作覆盖现有私有脚本对 lark-cli 的全部调用面（`mail_send` 与 `im_chat_link` 是写）；**不在这张表里的能力，需要时再补**——
 补的姿势是加一个动作，不是在场景脚本里自己拼命令。
 
 ## 三、落盘契约
