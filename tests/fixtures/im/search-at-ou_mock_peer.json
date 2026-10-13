@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "chat_id": "oc_mock_chat",
+      "chat_type": "group",
+      "message_id": "om-mock-0002",
+      "message_position": "2",
+      "msg_type": "text",
+      "content": "收到，谢谢老师。",
+      "create_time": "2026-10-05 09:20",
+      "deleted": false,
+      "updated": false,
+      "sender": {
+        "id": "ou_mock_suxiao",
+        "id_type": "open_id",
+        "name": "苏晓",
+        "sender_type": "user"
+      },
+      "message_app_link": "https://applink.feishu.cn/client/chat/open?openChatId=oc_mock_chat&position=2"
+    }
+  ],
+  "has_more": false,
+  "page_token": ""
+}

@@ -39,6 +39,32 @@ def read_json(*parts: str):
         return json.load(f)
 
 
+def read_optional(*parts: str):
+    """存在就读，不存在回 None——资源类夹具按「这个资源还没有数据」处理，不报错。"""
+    path = root().joinpath(*parts)
+    if not path.exists():
+        return None
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def page_of(items: list, token: str | None, size: int) -> tuple[list, bool, str]:
+    """游标切片：``list:<n>`` 表示从第 n 条起。与 mail +triage 同一套游标形状。
+
+    返回（本页, has_more, 下个游标）。真 CLI 的游标是服务端不透明串，
+    mock 只能用位置模拟——形状对齐、语义近似，见 packages/mock/README.md。
+    """
+    start = 0
+    if token:
+        if not str(token).startswith("list:"):
+            from .envelope import usage_error
+            usage_error("mock 只实现了 list: 前缀的游标", param="--page-token")
+        start = int(str(token)[len("list:"):])
+    page = list(items[start:start + size])
+    has_more = start + len(page) < len(items)
+    return page, has_more, (f"list:{start + len(page)}" if has_more else "")
+
+
 def mail_folder(folder: str) -> list[dict]:
     """某个文件夹的邮件。夹具里没有这个文件夹就按空文件夹处理。"""
     path = root() / "mail" / folder_file(folder)

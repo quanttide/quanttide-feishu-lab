@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "guid": "task-mock-001",
+      "summary": "整理第一周课堂日志",
+      "completed": false,
+      "due": "2026-10-08",
+      "creator": "ou_mock_boss",
+      "assignee": "ou_mock_peer"
+    },
+    {
+      "guid": "task-mock-002",
+      "summary": "更新准入问卷",
+      "completed": true,
+      "due": "2026-10-04",
+      "creator": "ou_mock_boss",
+      "assignee": "ou_mock_peer"
+    }
+  ],
+  "has_more": false,
+  "page_token": ""
+}

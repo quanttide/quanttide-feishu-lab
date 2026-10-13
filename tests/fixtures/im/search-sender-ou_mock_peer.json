@@ -1,0 +1,50 @@
+{
+  "items": [
+    {
+      "chat_id": "oc_mock_chat",
+      "chat_type": "group",
+      "message_id": "om-mock-0001",
+      "message_position": "1",
+      "msg_type": "text",
+      "content": "欢迎扫码进群，明天下午三点第一次课。",
+      "create_time": "2026-10-05 09:12",
+      "deleted": false,
+      "updated": false,
+      "sender": {
+        "id": "ou_mock_peer",
+        "id_type": "open_id",
+        "name": "何锐",
+        "sender_type": "user"
+      },
+      "message_app_link": "https://applink.feishu.cn/client/chat/open?openChatId=oc_mock_chat&position=1",
+      "reactions": {
+        "counts": [
+          {
+            "reaction_type": "THUMBSUP",
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "chat_id": "oc_mock_chat",
+      "chat_type": "group",
+      "message_id": "om-mock-0003",
+      "message_position": "3",
+      "msg_type": "text",
+      "content": "第一周的任务我整理成清单了。",
+      "create_time": "2026-10-06 20:05",
+      "deleted": false,
+      "updated": false,
+      "sender": {
+        "id": "ou_mock_peer",
+        "id_type": "open_id",
+        "name": "何锐",
+        "sender_type": "user"
+      },
+      "message_app_link": "https://applink.feishu.cn/client/chat/open?openChatId=oc_mock_chat&position=3"
+    }
+  ],
+  "has_more": false,
+  "page_token": ""
+}

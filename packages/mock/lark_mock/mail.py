@@ -182,3 +182,33 @@ def send(flags: dict) -> Result:
     fixtures.write_outbox({"message_id": message_id, "to": to, "subject": subject,
                            "body": body, "attachments": attachments})
     return Result({"message_id": message_id, "thread_id": f"mock-thread-{message_id}"})
+
+
+def attachments_download(flags: dict) -> Result:
+    """``mail user_mailbox.message.attachments download_url``：回附件下载地址。
+
+    mock 不真下载：download_url 指到夹具里同名文件的 ``file://`` 地址，能力层按同一
+    协议取文件——真飞书回 https 地址，取法只差一层 URL 解析。
+    附件 id 与 ``+messages`` 的归一化规则一致（``<message_id>-att-<序号>``）。
+    """
+    mid = flags.get("message-id")
+    if not mid:
+        usage_error('required flag(s) "message-id" not set', param="--message-id")
+    wanted = [x.strip() for x in (flags.get("attachment-ids") or "").split(",") if x.strip()]
+    rec = fixtures.find_messages([mid]).get(mid)
+    if rec is None:
+        usage_error(f"message not found: {mid}", subtype="not_found")
+
+    items = []
+    for i, name in enumerate(rec.get("attachments") or []):
+        aid = f"{mid}-att-{i}"
+        if wanted and aid not in wanted:
+            continue
+        path = fixtures.root() / "attachments" / name
+        items.append({
+            "attachment_id": aid,
+            "filename": name,
+            "mailbox_id": flags.get("user-mailbox-id") or flags.get("mailbox") or "me",
+            "download_url": path.as_uri() if path.exists() else "",
+        })
+    return Result({"attachments": items, "total": len(items)})
