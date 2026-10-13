@@ -8,8 +8,8 @@
 
 | 实现 | 形态 | 给谁用 | 现状 |
 | :-- | :-- | :-- | :-- |
-| Python 层 mock（`feishu/mock.py`） | 飞书能力接口直读夹具 | runner | 已跑通 |
-| 真实能力 | **子进程调 `lark-cli`**（`feishu/real.py`） | runner（`--cli`） | 已实现；真飞书侧 scope 未开通、要授权，仍打不通 |
+| 夹具替身（`feishu/resources/mock.py`） | 按资源读写夹具 | runner（`--mock`） | 已跑通 |
+| 真实能力 | **子进程调 `lark-cli`**（`feishu/resources/real.py`） | runner（`--cli`） | 已实现；真飞书侧 scope 未开通、要授权，仍打不通 |
 
 真实能力已经就是子进程调 `lark-cli`：把本包的 `bin/lark-cli` 顶到 PATH 最前面遮蔽真 CLI，
 它**一行不改**就能离线跑通——`scripts/smoke.py` 的 CLI 段逐项核对两层结果一致。
@@ -19,7 +19,7 @@
 
 ## 命令面
 
-流程要用的五条 + 资源层要用的十条（`docs/capabilities.md` 的六资源十二动作）：
+流程要用的五条 + 资源层要用的十条（`docs/capabilities.md` 的六资源十三动作）：
 
 | 命令 | 读 / 写 | 关键 flags | `data` 负载 |
 | :-- | :-- | :-- | :-- |

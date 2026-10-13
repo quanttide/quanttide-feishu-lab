@@ -4,7 +4,7 @@
 环境变量 ``LARK_MOCK_FIXTURES`` 可换目录——smoke 用它把输出引到临时目录，
 不污染仓库里的 ``fixtures/outbox/``。
 
-夹具形状见 ``src/recruitment/feishu/mock.py`` 的模块说明：
+夹具形状见 ``shapes.py`` 与 ``packages/mock/README.md``：
     fixtures/mail/<文件夹>.json   每封：message_id / sender / subject / body / date / attachments
     fixtures/survey.json          调研表记录
     fixtures/group_members.json   群成员邮箱
@@ -18,6 +18,8 @@ import os
 import re
 from pathlib import Path
 
+from . import shapes
+
 DEFAULT_ROOT = Path(__file__).resolve().parents[3] / "tests" / "fixtures"
 
 # 系统文件夹名 → 夹具文件夹名（其余名字原样用，找不到文件当空文件夹）
@@ -30,8 +32,8 @@ def root() -> Path:
 
 
 def folder_file(folder: str) -> str:
-    """文件夹名 → 夹具文件名。与 feishu/mock.py 的规则一致。"""
-    return re.sub(r"[^\w一-鿿]+", "-", folder).strip("-") + ".json"
+    """文件夹名 → 夹具文件名（规则在 shapes.py，一份）。"""
+    return shapes.folder_file(folder)
 
 
 def read_json(*parts: str):
@@ -48,21 +50,6 @@ def read_optional(*parts: str):
         return json.load(f)
 
 
-def page_of(items: list, token: str | None, size: int) -> tuple[list, bool, str]:
-    """游标切片：``list:<n>`` 表示从第 n 条起。与 mail +triage 同一套游标形状。
-
-    返回（本页, has_more, 下个游标）。真 CLI 的游标是服务端不透明串，
-    mock 只能用位置模拟——形状对齐、语义近似，见 packages/mock/README.md。
-    """
-    start = 0
-    if token:
-        if not str(token).startswith("list:"):
-            from .envelope import usage_error
-            usage_error("mock 只实现了 list: 前缀的游标", param="--page-token")
-        start = int(str(token)[len("list:"):])
-    page = list(items[start:start + size])
-    has_more = start + len(page) < len(items)
-    return page, has_more, (f"list:{start + len(page)}" if has_more else "")
 
 
 def mail_folder(folder: str) -> list[dict]:
@@ -95,8 +82,8 @@ def find_messages(message_ids: list[str]) -> dict[str, dict]:
 
 
 def slug(email: str) -> str:
-    """邮箱 → 文件名片段。与 feishu/mock.py 的 _slug 保持一致，
-    同一封发信无论走 Python 层 mock 还是 CLI 层 mock，message_id 都相同。"""
+    """邮箱 → 文件名片段。夹具层与资源层共用这一份，
+    同一封发信无论走哪条路，message_id 都相同。"""
     local, _, domain = email.partition("@")
     digest = 0
     for ch in email:

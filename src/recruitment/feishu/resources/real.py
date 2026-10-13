@@ -5,15 +5,12 @@
     PATH 前面放 packages/mock/bin  → 假 lark-cli，读 tests/fixtures/，离线
     PATH 里是真 lark-cli           → 打真飞书
 
+命令只写在 ``ACTIONS`` 这张表里（动作 → 资源 / 固定命令段 / 参数名 / flag 与值的改写），
+拼 argv、解信封、落盘由 ``_call`` 一次做完。加一个动作 = 表里加一行 + 契约里加一个方法。
+
 值全部从参数与环境来，代码里不写任何邮箱、群 id、人名、关键词：
 
-    LARK_CLI            命令名（默认 lark-cli）
-    LARK_BASE_TOKEN     多维表格 base（默认 mock-base-token）
-    LARK_TABLE_ID       表（默认 mock-table-id）
-    LARK_CHAT_ID        群（默认 oc_mock_chat）
-    LARK_MAILBOX        邮箱（默认 me）
-
-落盘与夹具实现同一套路径（见 store.py）：每页一份原样响应，附件落原文件。
+    LARK_CLI / LARK_MAILBOX / LARK_BASE_TOKEN / LARK_TABLE_ID / LARK_CHAT_ID
 """
 
 from __future__ import annotations
@@ -26,6 +23,62 @@ from urllib.parse import urlparse
 
 from ..resources import Attachment, Page
 from ..resources.store import RawStore
+
+# 动作表：动作名 → (资源, 落盘动作名, 固定命令段, 参数名, flag 改写, 值改写)
+# 落盘动作名就是 raw/<资源>/<这个名字>/<页序>.json——短名，不与资源重复
+# 值改写（没写就是原样 --<参数名，下划线换中划线>）：
+#   json_folder  值包成 {"folder": <值>} 再 json       join        列表拼逗号串
+#   invert       值为假才带那个否定 flag（with_reactions=False → --no-reactions）
+#   bool_text    布尔渲染成 true / false 文字          user_id     带 --user-id <值> --as user
+#   only_true    值为真才带（如 --page-all）
+#   false_flag   值为假时带 <flag>=false（如 --html=false）   raw      原样传（如 --filter-json）
+ACTIONS: dict[str, tuple] = {
+    "mail_list": ("mail", "list", ("mail", "+triage"),
+                  ("mailbox", "folder", "query", "page_size", "page_token"),
+                  {"page_size": "--max", "folder": "--filter"}, {"folder": "json_folder"}),
+    "mail_messages": ("mail", "messages", ("mail", "+messages"),
+                      ("message_ids", "mailbox", "html"),
+                      {"message_ids": "--message-ids"},
+                      {"message_ids": "join", "html": "false_flag"}),
+    "mail_send": ("mail", "send", ("mail", "+send", "--confirm-send"),
+                  ("to", "subject", "body", "mailbox", "attachments"),
+                  {"attachments": "--attach"}, {"attachments": "join"}),
+    "im_chat_messages": ("im", "chat-messages", ("im", "+chat-messages-list"),
+                         ("chat_id", "user_id", "order", "page_size", "with_reactions",
+                          "page_token"),
+                         {"with_reactions": "--no-reactions"},
+                         {"user_id": "user_id", "with_reactions": "invert"}),
+    "im_chat_members": ("im", "chat-members", ("im", "+chat-members-list", "--page-all"),
+                        ("chat_id", "page_token"), {}, {}),
+    "im_messages_search": ("im", "messages-search", ("im", "+messages-search", "--as", "user"),
+                           ("sender", "at_chatter", "chat_id", "page_size", "with_reactions",
+                            "page_token"),
+                           {"at_chatter": "--at-chatter-ids", "with_reactions": "--no-reactions"},
+                           {"with_reactions": "invert"}),
+    "vc_meeting_search": ("vc", "meeting-search", ("vc", "+search", "--as", "user"),
+                          ("participant_id", "start", "end", "page_size", "page_token"),
+                          {"participant_id": "--participant-ids"}, {}),
+    "vc_meeting_get": ("vc", "meeting-get", ("vc", "meeting", "get", "--with-participants", "true"),
+                       ("meeting_id",), {}, {}),
+    "task_list": ("task", "mine", ("task",), ("complete", "page_token"),
+                  {"complete": "--complete"}, {"complete": "bool_text"}),
+    "drive_search": ("doc", "drive-search", ("drive", "+search"),
+                     ("edited_since", "created_since", "page_size", "page_token"), {}, {}),
+    "docs_fetch": ("doc", "docs-fetch", ("docs", "+fetch"), ("doc", "detail", "doc_format"), {}, {}),
+    "base_records": ("base", "record-list", ("base", "+record-list"),
+                     ("base_token", "table_id", "filter_json", "offset", "limit"),
+                     {}, {"filter_json": "raw"}),
+    "mail_attachment_download": ("mail", "attachments", ("mail", "user_mailbox.message.attachments",
+                                          "download_url"),
+                                 ("mailbox", "message_id", "attachment_ids"),
+                                 {"mailbox": "--user-mailbox-id"},
+                                 {"attachment_ids": "join"}),
+}
+
+# task 的三种取法（我负责 / 与我相关 / 清单）——同一个动作换命令段
+TASK_COMMAND = {"mine": ("task", "+get-my-tasks", "--page-all"),
+                "related": ("task", "+get-related-tasks", "--page-all"),
+                "tasklists": ("task", "tasklists", "list", "--as", "user", "--page-all")}
 
 
 def _extract_json(text: str) -> dict | None:
@@ -43,13 +96,37 @@ def _extract_json(text: str) -> dict | None:
     return None
 
 
-class CLIResources:
-    """资源层契约的 lark-cli 实现：命令只活在这里，落盘走 RawStore。"""
+def _emit(args: list[str], name: str, value, flag_of: dict, mode: dict) -> None:
+    """把一个参数变成 argv 片段。"""
+    flag = flag_of.get(name, "--" + name.replace("_", "-"))
+    how = mode.get(name)
+    if how == "invert":
+        if not value:
+            args.append(flag)
+    elif value in (None, "", []):
+        return
+    elif how == "user_id":
+        args += ["--user-id", str(value), "--as", "user"]
+    elif how == "json_folder":
+        args += [flag, json.dumps({"folder": value}, ensure_ascii=False)]
+    elif how == "false_flag":
+        if not value:
+            args.append(f"{flag}=false")
+    elif how == "join":
+        args += [flag, ",".join(str(v) for v in value)]
+    elif how == "bool_text":
+        args += [flag, "true" if value else "false"]
+    else:
+        args += [flag, str(value)]
 
-    def __init__(self, store_root: str, *, lark_cli: str | None = None, mailbox: str | None = None,
-                 base_token: str | None = None, table_id: str | None = None,
-                 chat_id: str | None = None) -> None:
-        self.store = RawStore(store_root)
+
+class CLIResources:
+    """资源层契约的 lark-cli 实现：命令在 ACTIONS 表里，落盘走 RawStore。"""
+
+    def __init__(self, store_root: str | None = None, *, lark_cli: str | None = None,
+                 mailbox: str | None = None, base_token: str | None = None,
+                 table_id: str | None = None, chat_id: str | None = None) -> None:
+        self.store = RawStore(store_root) if store_root else None
         self.lark_cli = lark_cli or os.environ.get("LARK_CLI", "lark-cli")
         self.mailbox = mailbox or os.environ.get("LARK_MAILBOX", "me")
         self.base_token = base_token or os.environ.get("LARK_BASE_TOKEN", "mock-base-token")
@@ -77,10 +154,22 @@ class CLIResources:
 
     def _land(self, resource: str, action: str, raw: dict) -> Page:
         data = raw.get("data") or {}
-        self.store.save_response(resource, action, raw)
+        if self.store:
+            self.store.save_response(resource, action, raw)
         return Page(resource=resource, action=action, payload=data,
                     has_more=bool(data.get("has_more")), page_token=data.get("page_token") or "",
                     raw=raw)
+
+    def _call(self, action: str, *, argv: tuple[str, ...] | None = None,
+              land: str | None = None, **params) -> Page:
+        """按表拼 argv：固定命令段 + 各参数 + --format json，再跑、再落盘。"""
+        resource, landing, command, names, flag_of, mode = ACTIONS[action]
+        args = list(argv or command)
+        for name in names:
+            _emit(args, name, params.get(name), flag_of, mode)
+        args += ["--format", "json"]
+        _, raw = self._run(*args)
+        return self._land(resource, land or landing, raw)
 
     def _fetch_bytes(self, url: str) -> bytes:
         """download_url → 字节。file:// 与 https 一视同仁。"""
@@ -89,167 +178,78 @@ class CLIResources:
             path = urllib.request.url2pathname(parsed.path) if parsed.scheme else url
             with open(path, "rb") as f:
                 return f.read()
-        with urllib.request.urlopen(url) as resp:      # noqa: S310 (平台地址来自 lark-cli)
+        with urllib.request.urlopen(url) as resp:      # noqa: S310 (地址来自 lark-cli)
             return resp.read()
 
-    # ── mail ─────────────────────────────────────────────
-    def mail_list(self, *, mailbox: str | None = None, folder: str | None = None,
-                  query: str | None = None, page_size: int = 400,
-                  page_token: str | None = None) -> Page:
-        args = ["mail", "+triage", "--mailbox", mailbox or self.mailbox,
-                "--max", str(page_size), "--format", "json"]
-        if folder:
-            args += ["--filter", json.dumps({"folder": folder}, ensure_ascii=False)]
-        if query:
-            args += ["--query", query]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("mail", "list", raw)
+    # ── 契约的十三个动作 ─────────────────────────────────
+    def mail_list(self, *, mailbox=None, folder=None, query=None, page_size=400, page_token=None):
+        return self._call("mail_list", mailbox=mailbox or self.mailbox, folder=folder,
+                          query=query, page_size=page_size, page_token=page_token)
 
-    def mail_messages(self, *, mailbox: str | None = None, message_ids: list[str],
-                      html: bool = True) -> Page:
-        args = ["mail", "+messages", "--message-ids", ",".join(message_ids),
-                "--mailbox", mailbox or self.mailbox, "--format", "json"]
-        if not html:
-            args += ["--html=false"]
-        data, raw = self._run(*args)
-        return self._land("mail", "messages", raw)
+    def mail_messages(self, *, message_ids, mailbox=None, html=True):
+        return self._call("mail_messages", message_ids=message_ids, mailbox=mailbox or self.mailbox,
+                          html=html)
 
-    def mail_attachment_download(self, *, mailbox: str | None = None, message_id: str,
-                                 attachment_ids: list[str]) -> list[Attachment]:
-        args = ["mail", "user_mailbox.message.attachments", "download_url",
-                "--user-mailbox-id", mailbox or self.mailbox,
-                "--message-id", message_id, "--format", "json"]
-        if attachment_ids:
-            args += ["--attachment-ids", ",".join(attachment_ids)]
-        data, raw = self._run(*args)
+    def mail_send(self, *, to, subject, body, attachments=None, mailbox=None):
+        return self._call("mail_send", to=to, subject=subject, body=body, attachments=attachments,
+                          mailbox=mailbox or self.mailbox)
+
+    def mail_attachment_download(self, *, message_id, attachment_ids, mailbox=None):
+        """附件是唯一要「取字节」的动作：先取地址，再把原件落到 attachments/。"""
+        page = self._call("mail_attachment_download", mailbox=mailbox or self.mailbox,
+                          message_id=message_id, attachment_ids=attachment_ids)
         landed: list[Attachment] = []
-        for att in data.get("attachments") or []:
+        for att in page.payload.get("attachments") or []:
             aid = att.get("attachment_id") or att.get("id") or ""
             name = att.get("filename") or aid
             url = att.get("download_url") or ""
             blob = self._fetch_bytes(url) if url else b""
-            path = self.store.save_attachment(aid, name, blob)
+            path = self.store.save_attachment(aid, name, blob) if self.store else ""
             landed.append(Attachment(attachment_id=aid, filename=name, path=str(path)))
-        # 信封也要落 —— 落的是「回了什么」，附件字节落 attachments/
-        self._land("mail", "attachments", raw)
         return landed
 
-    # ── im ───────────────────────────────────────────────
-    def im_chat_messages(self, *, chat_id: str | None = None, user_id: str | None = None,
-                         order: str = "asc", with_reactions: bool = True,
-                         page_size: int = 50, page_token: str | None = None) -> Page:
+    def im_chat_messages(self, *, chat_id=None, user_id=None, order="asc",
+                         with_reactions=True, page_size=50, page_token=None):
         if not chat_id and not user_id:
             raise RuntimeError("im_chat_messages 需要 chat_id 或 user_id")
-        args = ["im", "+chat-messages-list", "--page-size", str(page_size),
-                "--order", order, "--format", "json"]
-        if chat_id:
-            args += ["--chat-id", chat_id]
-        else:
-            args += ["--user-id", user_id, "--as", "user"]
-        if not with_reactions:
-            args += ["--no-reactions"]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("im", "chat-messages", raw)
+        return self._call("im_chat_messages", chat_id=chat_id, user_id=user_id, order=order,
+                          page_size=page_size, with_reactions=with_reactions, page_token=page_token)
 
-    def im_chat_members(self, *, chat_id: str | None = None,
-                        page_token: str | None = None) -> Page:
-        args = ["im", "+chat-members-list", "--chat-id", chat_id or self.chat_id,
-                "--page-all", "--format", "json"]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("im", "chat-members", raw)
+    def im_chat_members(self, *, chat_id=None, page_token=None):
+        return self._call("im_chat_members", chat_id=chat_id or self.chat_id, page_token=page_token)
 
-    def im_messages_search(self, *, sender: str | None = None, at_chatter: str | None = None,
-                           chat_id: str | None = None, with_reactions: bool = False,
-                           page_size: int = 50, page_token: str | None = None) -> Page:
+    def im_messages_search(self, *, sender=None, at_chatter=None, chat_id=None,
+                           with_reactions=False, page_size=50, page_token=None):
         if not sender and not at_chatter:
             raise RuntimeError("im_messages_search 需要 sender 或 at_chatter")
-        args = ["im", "+messages-search", "--as", "user",
-                "--page-size", str(page_size), "--format", "json"]
-        if sender:
-            args += ["--sender", sender]
-        if at_chatter:
-            args += ["--at-chatter-ids", at_chatter]
-        if chat_id:
-            args += ["--chat-id", chat_id]
-        if not with_reactions:
-            args += ["--no-reactions"]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("im", "messages-search", raw)
+        return self._call("im_messages_search", sender=sender, at_chatter=at_chatter,
+                          chat_id=chat_id, page_size=page_size, with_reactions=with_reactions,
+                          page_token=page_token)
 
-    # ── vc ───────────────────────────────────────────────
-    def vc_meeting_search(self, *, participant_id: str | None = None, start: str | None = None,
-                          end: str | None = None, page_size: int = 30,
-                          page_token: str | None = None) -> Page:
+    def vc_meeting_search(self, *, participant_id=None, start=None, end=None, page_size=30,
+                          page_token=None):
         if not participant_id:
             raise RuntimeError("vc_meeting_search 需要 participant_id")
-        args = ["vc", "+search", "--as", "user", "--participant-ids", participant_id,
-                "--page-size", str(page_size), "--format", "json"]
-        if start:
-            args += ["--start", start]
-        if end:
-            args += ["--end", end]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("vc", "meeting-search", raw)
+        return self._call("vc_meeting_search", participant_id=participant_id, start=start, end=end,
+                          page_size=page_size, page_token=page_token)
 
-    def vc_meeting_get(self, *, meeting_id: str) -> Page:
-        data, raw = self._run("vc", "meeting", "get", "--meeting-id", meeting_id,
-                              "--with-participants", "true", "--format", "json")
-        return self._land("vc", "meeting-get", raw)
+    def vc_meeting_get(self, *, meeting_id):
+        return self._call("vc_meeting_get", meeting_id=meeting_id)
 
-    # ── task ─────────────────────────────────────────────
-    def task_list(self, *, scope: str = "mine", complete: bool | None = None,
-                  page_size: int = 50, page_token: str | None = None) -> Page:
-        if scope == "tasklists":
-            args = ["task", "tasklists", "list", "--as", "user", "--page-all", "--format", "json"]
-        else:
-            command = "+get-my-tasks" if scope == "mine" else "+get-related-tasks"
-            args = ["task", command, "--page-all", "--format", "json"]
-            if complete is not None:
-                args += [f"--complete={'true' if complete else 'false'}"]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("task", scope, raw)
+    def task_list(self, *, scope="mine", complete=None, page_size=50, page_token=None):
+        return self._call("task_list", argv=TASK_COMMAND[scope], land=scope,
+                          complete=complete, page_token=page_token)
 
-    # ── doc ──────────────────────────────────────────────
-    def drive_search(self, *, edited_since: str | None = None, created_since: str | None = None,
-                     page_size: int = 20, page_token: str | None = None) -> Page:
+    def drive_search(self, *, edited_since=None, created_since=None, page_size=20, page_token=None):
         if not (edited_since or created_since):
             raise RuntimeError("drive_search 需要 edited_since 或 created_since")
-        args = ["drive", "+search", "--page-size", str(page_size), "--format", "json"]
-        if edited_since:
-            args += ["--edited-since", edited_since]
-        if created_since:
-            args += ["--created-since", created_since]
-        if page_token:
-            args += ["--page-token", page_token]
-        data, raw = self._run(*args)
-        return self._land("doc", "drive-search", raw)
+        return self._call("drive_search", edited_since=edited_since, created_since=created_since,
+                          page_size=page_size, page_token=page_token)
 
-    def docs_fetch(self, *, doc: str, detail: str = "simple",
-                   doc_format: str = "markdown") -> Page:
-        data, raw = self._run("docs", "+fetch", "--doc", doc, "--detail", detail,
-                              "--doc-format", doc_format, "--format", "json")
-        return self._land("doc", "docs-fetch", raw)
+    def docs_fetch(self, *, doc, detail="simple", doc_format="markdown"):
+        return self._call("docs_fetch", doc=doc, detail=detail, doc_format=doc_format)
 
-    # ── base ─────────────────────────────────────────────
-    def base_records(self, *, base_token: str | None = None, table_id: str | None = None,
-                     filter_json: str | None = None, offset: int = 0,
-                     limit: int = 100) -> Page:
-        args = ["base", "+record-list", "--base-token", base_token or self.base_token,
-                "--table-id", table_id or self.table_id,
-                "--offset", str(offset), "--limit", str(limit), "--format", "json"]
-        if filter_json:
-            args += ["--filter-json", filter_json]
-        data, raw = self._run(*args)
-        return self._land("base", "record-list", raw)
+    def base_records(self, *, base_token=None, table_id=None, filter_json=None, offset=0, limit=100):
+        return self._call("base_records", base_token=base_token or self.base_token,
+                          table_id=table_id or self.table_id, filter_json=filter_json,
+                          offset=offset, limit=limit)

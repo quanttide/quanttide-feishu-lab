@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from . import fixtures
+from . import fixtures, shapes
 from .envelope import Result, usage_error
 
 SCOPE_FIXTURE = {"mine": "my-tasks.json", "related": "related-tasks.json",
@@ -40,7 +40,7 @@ def list_tasks(flags: dict, *, command: str = "+get-my-tasks") -> Result:
     if complete is not None:
         items = [i for i in items if bool(i.get("completed")) is complete]
 
-    page, has_more, token = fixtures.page_of(items, flags.get("page-token"),
+    page, has_more, token = shapes.page_of(items, flags.get("page-token"),
                                              flags.get("page-size") or 50)
     data = {"items": page, "has_more": has_more, "page_token": token}
     lines = ["guid\tsummary\tcompleted"]

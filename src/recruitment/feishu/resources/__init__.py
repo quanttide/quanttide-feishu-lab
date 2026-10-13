@@ -11,13 +11,15 @@
 取到的每一页都落一份原样响应（见 ``store.py``），所以「数据」与「加工」天然分开：
 ``raw/`` 里只有飞书的事实，要聚合要分类另行去建目录。
 
-资源与动作（六资源十二动作，覆盖现有脚本对 lark-cli 的全部调用面）：
+资源与动作（六资源十三动作，覆盖现有脚本对 lark-cli 的全部调用面；只有 mail_send 是写，
+其余都是读）：
 
 | 资源 | 动作 | 对应的 lark-cli 命令 |
 | :-- | :-- | :-- |
 | mail | `mail_list` | `mail +triage` |
 | mail | `mail_messages` | `mail +messages` |
 | mail | `mail_attachment_download` | `mail user_mailbox.message.attachments download_url` |
+| mail | `mail_send` | `mail +send --confirm-send` |
 | im | `im_chat_messages` | `im +chat-messages-list`（群按 chat-id，单聊按 user-id） |
 | im | `im_chat_members` | `im +chat-members-list` |
 | im | `im_messages_search` | `im +messages-search`（按发言人 / 被 @ 人） |
@@ -63,7 +65,7 @@ class Attachment:
 class Resources(Protocol):
     """资源层契约。所有参数都是飞书坐标，返回值都是原样负载。"""
 
-    store: RawStore
+    store: RawStore | None      # 给了才落盘：流程能力层只读，不需要留档
 
     # mail
     def mail_list(self, *, mailbox: str | None = None, folder: str | None = None,
@@ -75,6 +77,9 @@ class Resources(Protocol):
 
     def mail_attachment_download(self, *, message_id: str, attachment_ids: list[str],
                                  mailbox: str | None = None) -> list[Attachment]: ...
+
+    def mail_send(self, *, to: str, subject: str, body: str,
+                  attachments: list[str] | None = None, mailbox: str | None = None) -> Page: ...
 
     # im
     def im_chat_messages(self, *, chat_id: str | None = None, user_id: str | None = None,
@@ -129,19 +134,18 @@ def pull(client: Resources, action: str, *, cursor_key: str | None = None,
         if not page.has_more or not page.page_token or len(pages) >= max_pages:
             break
         token = page.page_token
-    if cursor_key and pages:
-        last = pages[-1]
-        client.store.set_cursor(cursor_key, last.page_token or "")
+    if cursor_key and pages and client.store:
+        client.store.set_cursor(cursor_key, pages[-1].page_token or "")
     return pages
 
 
-def mock(store_root: str, fixtures_dir: str) -> Resources:
+def mock(store_root: str | None, fixtures_dir: str) -> Resources:
     """测试替身：读夹具目录，仍按同样的路径落盘，确定性、零外部 IO。"""
     from .mock import MockResources
     return MockResources(store_root, fixtures_dir)
 
 
-def real(store_root: str, **ids) -> Resources:
+def real(store_root: str | None = None, **ids) -> Resources:
     """真飞书客户端：子进程调 lark-cli（canonical 实现）。"""
     from .real import CLIResources
     return CLIResources(store_root, **ids)

@@ -1,4 +1,4 @@
-"""资源层冒烟：十二个动作走两层实现，并核落盘契约。
+"""资源层冒烟：十三个动作走两层实现，并核落盘契约。
 
 跑法（在实验室根目录）：
 
@@ -61,7 +61,7 @@ def main() -> int:
         c_mock = MockResources(str(fixture_store), str(FIXTURES))
         c_cli = CLIResources(str(store_dir), mailbox=MAILBOX, chat_id=CHAT)
 
-        print("── 1. 十二个动作（夹具层）")
+        print("── 1. 十三个动作（夹具层）")
         mail_pages = pull(c_mock, "mail_list", folder="收件箱", mailbox=MAILBOX, page_size=2)
         mail_ids = [m["message_id"] for p in mail_pages for m in p.payload["messages"]]
         check("mail_list 翻页", len(mail_pages) >= 2 and len(mail_ids) == len(set(mail_ids)),
@@ -69,6 +69,9 @@ def main() -> int:
         full = c_mock.mail_messages(message_ids=mail_ids[:2], mailbox=MAILBOX)
         check("mail_messages", len(full.payload["messages"]) == 2
               and not full.payload["unavailable_message_ids"])
+        sent = c_mock.mail_send(to="new@example.com", subject="群二维码", body="扫码进群",
+                                attachments=["群二维码.png"], mailbox=MAILBOX)
+        check("mail_send", bool(sent.payload.get("message_id")), str(sent.payload))
         atts = c_mock.mail_attachment_download(message_id=mail_ids[0], attachment_ids=[],
                                                mailbox=MAILBOX)
         check("mail_attachment_download", bool(atts), f"{len(atts)} 个附件")
@@ -123,6 +126,11 @@ def main() -> int:
             a = [p.payload for p in run(c_mock)]
             b = [p.payload for p in run(c_cli)]
             check(f"{name} 两层一致", a == b)
+        check("mail_send 两层一致", c_mock.mail_send(to="new@example.com", subject="群二维码",
+                                                    body="扫码进群", attachments=["群二维码.png"],
+                                                    mailbox=MAILBOX).payload
+              == c_cli.mail_send(to="new@example.com", subject="群二维码", body="扫码进群",
+                                 attachments=["群二维码.png"], mailbox=MAILBOX).payload)
         atts_cli = c_cli.mail_attachment_download(message_id=mail_ids[0], attachment_ids=[],
                                                  mailbox=MAILBOX)
         check("mail_attachment_download 两层一致（文件名与字节）",

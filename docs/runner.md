@@ -67,7 +67,7 @@ YAML 里**不出现任何 lark-cli 命令**，只出现能力名。能力是流�
 
 **mock 就是这张表的第二列换成第三列**——换掉的是实现，不是流程。`--mock` 一开，同一份 YAML 用夹具跑；关掉，同一份 YAML 打真飞书。这也是为什么 YAML 里不能写命令：写了就没法换。
 
-mock 分两层，读同一批 `tests/fixtures/`，不互相取代：Python 层 `feishu/mock.py` 直读夹具，给 runner 用；CLI 层 `packages/mock` 是个假 `lark-cli`——真实能力（`feishu/real.py`，子进程调 `lark-cli`）把它 PATH 到前面就离线自测，代码一份不改，PATH 里是真 `lark-cli` 就打真飞书。设计见 `packages/mock/README.md`。
+mock 分两层，读同一批 `tests/fixtures/`，不互相取代：资源层替身（`feishu/resources/mock.py`）直读夹具，给 runner 用；CLI 层 `packages/mock` 是个假 `lark-cli`——资源层真实现（`feishu/resources/real.py`，子进程调 `lark-cli`）把它 PATH 到前面就离线自测，代码一份不改，PATH 里是真 `lark-cli` 就打真飞书。流程能力层（`feishu/client.py`）只负责包一层，与换哪种实现无关。设计见 `packages/mock/README.md`。
 
 ## 四、状态落在哪
 
@@ -124,5 +124,5 @@ recruitment run --mock --fixtures tests/fixtures/   # 实验室：走夹具
 1. 定能力清单（第三节那张表，先只留跑通最小闭环要用的四种：读邮件、读问卷记录、读群成员、发邮件）。
 2. 写 mock 能力 + 夹具（三五个虚构候选人，覆盖投递 / 二维码已发 / 已进群三格）。
 3. 写 runner 骨架：读 YAML、建状态机、`--step` 推一步、状态落盘。
-4. 真对接：子进程能力已就绪（`feishu/real.py`），给真 base-token / table-id / chat-id 与权限，对着真邮箱与真表跑一轮，核第三条判据。
+4. 真对接：子进程能力已就绪（`feishu/resources/real.py`），给真 base-token / table-id / chat-id 与权限，对着真邮箱与真表跑一轮，核第三条判据。
 5. 之后再谈把 runner 固化到哪一层——它是原型，不是产品。

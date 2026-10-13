@@ -15,14 +15,14 @@ member_id_type=email——接真飞书时能力层要补一步 open_id → 邮�
 
 from __future__ import annotations
 
-from . import fixtures
+from . import fixtures, shapes
 from .envelope import Result, usage_error
 
 
 def _paged(items: list, flags: dict, *, key: str = "messages") -> Result:
     """按 page-size / page-token 切页；--no-reactions 去掉表情回复；--order desc 反序。"""
     size = flags.get("page-size") or 50
-    page, has_more, token = fixtures.page_of(items, flags.get("page-token"), size)
+    page, has_more, token = shapes.page_of(items, flags.get("page-token"), size)
     if flags.get("no-reactions"):
         page = [{k: v for k, v in m.items() if k != "reactions"} for m in page]
     if (flags.get("order") or "asc") == "desc":

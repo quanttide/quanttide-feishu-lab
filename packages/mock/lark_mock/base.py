@@ -11,43 +11,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import fixtures
+from . import fixtures, shapes
 from .envelope import Result, usage_error
 
-ALIASES = {"邮箱": "email", "提交时间": "submitted_at"}
 
-
-def _field_value(record: dict, field: str):
-    key = ALIASES.get(field, field)
-    if key in record:
-        return record[key]
-    answers = record.get("answers") or {}
-    if field in answers:
-        return answers[field]
-    if key in answers:
-        return answers[key]
-    return None
-
-
-def _match(record: dict, conditions: list) -> bool:
-    for cond in conditions:
-        if not (isinstance(cond, list) and len(cond) == 3):
-            usage_error("每个条件要是三元组 [字段, 运算符, 值]", param="--filter-json")
-        field, op, expected = cond
-        actual = _field_value(record, field)
-        if actual is None:
-            return False
-        if op in ("==", "intersects"):
-            if isinstance(expected, list):
-                pool = actual if isinstance(actual, list) else [actual]
-                hit = any(v in expected for v in pool)
-            else:
-                hit = actual == expected
-        else:
-            usage_error(f"mock 只支持 == / intersects，不支持 {op!r}", param="--filter-json")
-        if not hit:
-            return False
-    return True
 
 
 def _markdown(items: list[dict]) -> str:
@@ -92,11 +59,11 @@ def record_list(flags: dict) -> Result:
             usage_error(f"mock 只支持 logic=and，不支持 {logic!r}", param="--filter-json")
         conditions = spec.get("conditions") or []
 
-    keep = [ALIASES.get(f, f) for f in flags.get("field-id") or []]
+    keep = [shapes.TABLE_ALIASES.get(f, f) for f in flags.get("field-id") or []]
 
     items = []
     for i, rec in enumerate(records):
-        if not _match(rec, conditions):
+        if not shapes.match_record(rec, conditions):
             continue
         fields = {k: v for k, v in rec.items() if k in keep} if keep else dict(rec)
         items.append({"record_id": f"rec-{i + 1:04d}", "fields": fields})

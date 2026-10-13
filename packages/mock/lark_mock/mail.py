@@ -13,7 +13,7 @@ import json
 import os
 from datetime import datetime
 
-from . import fixtures
+from . import fixtures, shapes
 from .envelope import Result, usage_error
 
 
@@ -52,20 +52,8 @@ def triage(flags: dict) -> Result:
                 if query in (m.get("sender", "") + m.get("subject", "")
                              + m.get("body", "")).lower()]
 
-    token = flags.get("page-token") or ""
-    start = 0
-    if token:
-        if not token.startswith("list:"):
-            usage_error("mock 只实现了 list: 前缀的游标", param="--page-token")
-        try:
-            start = int(token[len("list:"):])
-        except ValueError:
-            usage_error(f"游标不是 list:<整数>: {token}", param="--page-token")
-
     limit = flags.get("page-size") or flags.get("max") or 20
-    page = msgs[start:start + limit]
-    has_more = start + len(page) < len(msgs)
-    next_token = f"list:{start + len(page)}" if has_more else ""
+    page, has_more, next_token = shapes.page_of(msgs, flags.get("page-token"), limit)
 
     mailbox = flags.get("mailbox") or "me"
     items = [
@@ -98,38 +86,8 @@ def triage(flags: dict) -> Result:
 
 
 def _normalize(rec: dict, message_id: str, want_html: bool) -> dict:
-    """夹具记录 → +message 同款归一化字段（见 lark-mail-message.md 字段说明）。"""
-    sender = rec.get("sender", "")
-    recipient = rec.get("recipient") or rec.get("to") or ""
-    body = rec.get("body", "")
-    date = rec.get("date", "")
-    try:
-        date_ms = int(datetime.strptime(date, "%Y-%m-%d").timestamp() * 1000)
-    except (ValueError, TypeError):
-        date_ms = 0
-    sent = "sender" not in rec          # outbox 里的记录没有 sender，是发出去的
-    out = {
-        "message_id": message_id,
-        "thread_id": f"mock-thread-{message_id}",
-        "subject": rec.get("subject", ""),
-        "head_from": {"mail_address": sender, "name": ""},
-        "to": [{"mail_address": recipient, "name": ""}] if recipient else [],
-        "date": date_ms,
-        "date_formatted": date,
-        "folder_id": rec.get("_folder", ""),
-        "message_state": 2 if sent else 1,
-        "message_state_text": "sent" if sent else "received",
-        "body_plain_text": body,
-        "body_preview": body[:100],
-        "attachments": [
-            {"id": f"{message_id}-att-{i}", "filename": name,
-             "content_type": "text/plain", "attachment_type": 1, "is_inline": False}
-            for i, name in enumerate(rec.get("attachments") or [])
-        ],
-    }
-    if want_html:
-        out["body_html"] = body
-    return out
+    """夹具记录 → +message 归一化字段（规则在 shapes.py，一份）。"""
+    return shapes.normalize_mail(rec, message_id, want_html)
 
 
 def messages(flags: dict) -> Result:

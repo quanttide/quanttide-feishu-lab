@@ -1,4 +1,4 @@
-# 资源层：六资源十二动作（设计与契约）
+# 资源层：六资源十三动作（设计与契约）
 
 这一页定两件事：**能力清单**（飞书有哪些东西、按什么拿）与**落盘契约**（拿回来的东西怎么写下来）。
 判据全部可跑：`PYTHONPATH=src python3 scripts/smoke_resources.py`（41 项）。
@@ -14,13 +14,14 @@
 | 流程能力 | 流程要用到什么 | 业务概念（候选人邮箱、群） | 执行器 runner |
 | **资源层** | 飞书有什么 | 只有飞书坐标（mailbox、chat_id、meeting_id、since） | 收集与场景脚本 |
 
-## 二、能力清单（十二动作）
+## 二、能力清单（十三动作）
 
 | 资源 | 动作 | 参数（全部由调用方给） | lark-cli 命令 |
 | :-- | :-- | :-- | :-- |
 | mail | `mail_list` | mailbox, folder, query, page_size, page_token | `mail +triage` |
 | mail | `mail_messages` | message_ids, mailbox, html | `mail +messages` |
 | mail | `mail_attachment_download` | message_id, attachment_ids, mailbox | `mail user_mailbox.message.attachments download_url` |
+| mail | `mail_send` | to, subject, body, attachments, mailbox | `mail +send --confirm-send`（写） |
 | im | `im_chat_messages` | chat_id 或 user_id, order, with_reactions, page_size | `im +chat-messages-list` |
 | im | `im_chat_members` | chat_id | `im +chat-members-list` |
 | im | `im_messages_search` | sender 或 at_chatter, chat_id, with_reactions | `im +messages-search` |
@@ -31,7 +32,7 @@
 | doc | `docs_fetch` | doc, detail, doc_format | `docs +fetch` |
 | base | `base_records` | base_token, table_id, filter_json, offset, limit | `base +record-list` |
 
-十二个动作覆盖现有私有脚本对 lark-cli 的全部调用面；**不在这张表里的能力，需要时再补**——
+十三个动作覆盖现有私有脚本对 lark-cli 的全部调用面（只有 `mail_send` 是写）；**不在这张表里的能力，需要时再补**——
 补的姿势是加一个动作，不是在场景脚本里自己拼命令。
 
 ## 三、落盘契约
@@ -74,6 +75,7 @@
 | 实现 | 形态 | 怎么用 |
 | :-- | :-- | :-- |
 | `resources/mock.py` | 进程内测试替身，读夹具 | `--mock`：确定性自测与断言 |
+| 流程能力层（`feishu/client.py`） | 包一个资源层客户端（夹具 / lark-cli 皆可） | 上面的 `mock()` / `real()` 工厂 |
 | `resources/real.py` | 子进程调 `lark-cli` | `PATH` 前面放 `packages/mock/bin` 即离线；放真 CLI 即打真飞书 |
 
 两层的负载逐项一致（`smoke_resources.py` 第 2 段 14 项），这是「换实现不换结果」的本地兑现。

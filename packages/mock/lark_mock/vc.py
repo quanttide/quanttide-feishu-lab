@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from . import fixtures
+from . import fixtures, shapes
 from .envelope import Result, usage_error
 
 
@@ -21,7 +21,7 @@ def search(flags: dict) -> Result:
         usage_error('required flag(s) "participant-ids" not set', param="--participant-ids")
     who = raw.split(",")[0].strip()
     payload = fixtures.read_json("vc", f"search-{who}.json")
-    items, has_more, token = fixtures.page_of(
+    items, has_more, token = shapes.page_of(
         payload.get("items") or [], flags.get("page-token"), flags.get("page-size") or 30)
 
     data = {"items": items, "has_more": has_more, "page_token": token}
