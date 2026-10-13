@@ -11,7 +11,7 @@
    一致——同进程假 CLI 与子进程假 CLI 两条路都要对上；落盘契约成立；源码里没有具体值。
 2. **流程能力层**：夹具撑得起招聘最小闭环——六位虚构候选人落在投递 / 二维码已发 / 已进群三格，
    其中两位分别躺在 Spam 与被移走的文件夹里（两处卡点）；换成子进程假 CLI 结果一致。
-3. **假 lark-cli**：信封、退出码、翻页、``--jq`` / ``--dry-run`` 自检（见 packages/mock/README.md）。
+3. **假 lark-cli 的 CLI 面**：经 PATH 遮蔽调它，核信封、退出码、翻页、``--jq`` / ``--dry-run``。
 
 落盘写在临时目录，跑完即删，不碰仓库。
 """
@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -29,14 +30,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-import recruitment.feishu as cap  # noqa: E402
-from recruitment.feishu.resources import pull  # noqa: E402
-from recruitment.feishu.resources.mock import MockResources  # noqa: E402
-from recruitment.feishu.resources.real import CLIResources  # noqa: E402
-from recruitment.feishu.resources.store import RawStore  # noqa: E402
+import feishu as cap  # noqa: E402
+from feishu.resources import pull  # noqa: E402
+from feishu.resources.backend_inprocess import InProcessBackend  # noqa: E402
+from feishu.resources.backend_cli import CLIBackend  # noqa: E402
+from feishu.resources.store import RawStore  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
-MOCK_BIN = ROOT / "packages" / "mock" / "bin"
+MOCK_BIN = ROOT / "packages" / "fake_lark_cli" / "bin"
 SNAPSHOT = FIXTURES / "snapshots" / "resources.json"
 FOLDERS = ["收件箱", "已发送问卷", "沟通面试中", "Spam"]     # 对齐 flows/recruitment.yaml 的收集节
 
@@ -84,7 +85,7 @@ def calls(client) -> dict:
 
 def smoke_resources(store_dir: Path) -> None:
     """资源层：十三动作 + 录制负载 + 落盘契约 + 值不在代码里。"""
-    mock, cli = MockResources(None, str(FIXTURES)), CLIResources(str(store_dir), mailbox=MAILBOX,
+    mock, cli = InProcessBackend(None, str(FIXTURES)), CLIBackend(str(store_dir), mailbox=MAILBOX,
                                                                  chat_id=CHAT)
     if "--record" in sys.argv:
         SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +130,7 @@ def smoke_resources(store_dir: Path) -> None:
     check("路径里没有业务名 / 来源仓名", not bad_paths, str(bad_paths[:3]))
 
     print("\n── 4. 资源层：值全在调用方（源码里不该有具体值）")
-    for path in sorted((ROOT / "src" / "recruitment" / "feishu" / "resources").glob("*.py")):
+    for path in sorted((ROOT / "src" / "feishu" / "resources").glob("*.py")):
         text = path.read_text(encoding="utf-8")
         hard_id = re.search(r'"(oc|ou|om|cli|tbl|bas)[A-Za-z0-9]{8,}"', text)
         hard_mail = re.search(r"[\w.+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
@@ -193,6 +194,84 @@ def smoke_flow() -> None:
         check(f"{email:26s} {state}", state.startswith(want), f"期望 {want}")
 
 
+def smoke_cli_surface() -> None:
+    """假 lark-cli 的 CLI 面：信封（成功 stdout / 失败 stderr + exit 2）、翻页、--jq、--dry-run。
+
+    夹具整份拷进临时目录再跑，发信写在那里，不动仓库里的 tests/fixtures/。
+    """
+    tmp = Path(tempfile.mkdtemp(prefix="feishu-cli-surface-"))
+    try:
+        shutil.copytree(FIXTURES, tmp / "fixtures")
+        env = os.environ.copy()
+        env["PATH"] = f"{MOCK_BIN}{os.pathsep}{env['PATH']}"
+        env["LARK_MOCK_FIXTURES"] = str(tmp / "fixtures")
+
+        def run(*args: str) -> subprocess.CompletedProcess:
+            return subprocess.run(["lark-cli", *args], capture_output=True, text=True, env=env)
+
+        def payload(p: subprocess.CompletedProcess) -> dict:
+            return json.loads(p.stdout if p.returncode == 0 else p.stderr)
+
+        print("\n── 8. 假 lark-cli 的 CLI 面（PATH 遮蔽）")
+        check("which lark-cli 指向假 CLI",
+              shutil.which("lark-cli", path=env["PATH"]) == str(MOCK_BIN / "lark-cli"))
+
+        d = payload(run("mail", "+triage", "--filter", '{"folder":"收件箱"}', "--format", "json"))["data"]
+        check("收件箱 4 封 / folder=inbox 别名 / Spam 1 封",
+              d["count"] == 4
+              and payload(run("mail", "+triage", "--filter", '{"folder":"inbox"}',
+                              "--format", "json"))["data"]["count"] == 4
+              and payload(run("mail", "+triage", "--filter", '{"folder":"Spam"}',
+                              "--format", "json"))["data"]["count"] == 1)
+        d = payload(run("mail", "+triage", "--max", "2", "--format", "json"))["data"]
+        token = d["page_token"]
+        check("翻页第一页 count=2 / has_more / 游标", d["count"] == 2 and d["has_more"]
+              and token.startswith("list:"), json.dumps(d, ensure_ascii=False))
+        d = payload(run("mail", "+triage", "--max", "2", "--page-token", token,
+                        "--format", "json"))["data"]
+        check("翻页第二页剩 2 封、无游标", d["count"] == 2 and not d["has_more"])
+
+        d = payload(run("mail", "+messages", "--message-ids", "m-001,m-999"))["data"]
+        m = d["messages"][0] if d["messages"] else {}
+        check("+messages 命中 1 封、m-999 进 unavailable、字段归一化",
+              d["total"] == 1 and d["unavailable_message_ids"] == ["m-999"]
+              and "简历" in m.get("body_plain_text", "") and m.get("folder_id") == "收件箱"
+              and m["attachments"][0]["filename"] == "陈默-简历.txt")
+
+        check("+send 默认草稿模式（不落盘）",
+              "draft_id" in payload(run("mail", "+send", "--to", "smoke@example.com",
+                                        "--subject", "冒烟", "--body", "…"))["data"])
+        mid = payload(run("mail", "+send", "--confirm-send", "--to", "smoke@example.com",
+                          "--subject", "冒烟", "--body", "…"))["data"].get("message_id", "")
+        check("+send --confirm-send 写 outbox",
+              bool(mid) and (tmp / "fixtures" / "outbox" / f"{mid}.json").exists())
+
+        check("base +record-list 全表 2 条 / 过滤（中文别名 邮箱）1 条",
+              payload(run("base", "+record-list", "--base-token", "b", "--table-id", "tbl1",
+                          "--format", "json"))["data"]["total"] == 2
+              and payload(run("base", "+record-list", "--base-token", "b", "--table-id", "tbl1",
+                              "--filter-json", '{"logic":"and","conditions":'
+                              '[["邮箱","==","herui@example.com"]]}', "--format", "json")
+                          )["data"]["total"] == 1)
+        d = payload(run("im", "+chat-members-list", "--chat-id", "oc_mock"))["data"]
+        check("im +chat-members-list 3 人且 member_id 是邮箱",
+              len(d["users"]) == 3 and d["users"][0]["member_id_type"] == "email")
+
+        p = run("mail", "+reply")
+        check("未实现命令 → exit 2 + ok:false",
+              p.returncode == 2 and payload(p)["ok"] is False)
+        p = run("mail", "+triage", "--nope", "1")
+        check("未知 flag → exit 2 + param",
+              p.returncode == 2 and payload(p)["error"].get("param") == "--nope")
+        p = run("mail", "+triage", "--filter", '{"folder":"收件箱"}', "--jq", ".data.count")
+        check("--jq '.data.count' → 4", p.stdout.strip() == "4", p.stdout + p.stderr)
+        d = payload(run("im", "+chat-members-list", "--chat-id", "oc_mock", "--dry-run"))
+        check("--dry-run 信封带 identity / dry_run",
+              d["ok"] and d["dry_run"] is True and d["identity"] == "user")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main() -> int:
     store_dir = Path(tempfile.mkdtemp(prefix="feishu-smoke-"))
     os.environ["PATH"] = str(MOCK_BIN) + os.pathsep + os.environ["PATH"]
@@ -200,6 +279,7 @@ def main() -> int:
         smoke_resources(store_dir)
         if "--record" not in sys.argv:
             smoke_flow()
+            smoke_cli_surface()
         print(f"\n通过 {PASS}，失败 {FAIL}")
         return 0 if FAIL == 0 else 1
     finally:

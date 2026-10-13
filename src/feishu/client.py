@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import os
 
-from . import Mail, SurveyRecord, since, to_mail, to_survey
+from .contract import Mail, SurveyRecord, since, to_mail, to_survey
 
 PAGE_SIZE = 400
 

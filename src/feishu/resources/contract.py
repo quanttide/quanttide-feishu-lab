@@ -115,37 +115,3 @@ class Resources(Protocol):
     def base_records(self, *, base_token: str | None = None, table_id: str | None = None,
                      filter_json: str | None = None, offset: int = 0,
                      limit: int = 100) -> Page: ...
-
-
-# ── 分页：一份实现 ────────────────────────────────────────
-def pull(client: Resources, action: str, *, cursor_key: str | None = None,
-         max_pages: int = 100, **kwargs) -> list[Page]:
-    """把某个动作拉到底：一页一页取，每页已由实现落盘，最后推游标。
-
-    ``cursor_key`` 给了才动游标（列表类动作用资源名当键）；整段拉完才前进，
-    中途异常不推——下次还能从断点续。
-    """
-    method = getattr(client, action)
-    pages: list[Page] = []
-    token = kwargs.pop("page_token", None)
-    while True:
-        page = method(page_token=token, **kwargs)
-        pages.append(page)
-        if not page.has_more or not page.page_token or len(pages) >= max_pages:
-            break
-        token = page.page_token
-    if cursor_key and pages and client.store:
-        client.store.set_cursor(cursor_key, pages[-1].page_token or "")
-    return pages
-
-
-def mock(store_root: str | None, fixtures_dir: str) -> Resources:
-    """测试替身：读夹具目录，仍按同样的路径落盘，确定性、零外部 IO。"""
-    from .mock import MockResources
-    return MockResources(store_root, fixtures_dir)
-
-
-def real(store_root: str | None = None, **ids) -> Resources:
-    """真飞书客户端：子进程调 lark-cli（canonical 实现）。"""
-    from .real import CLIResources
-    return CLIResources(store_root, **ids)

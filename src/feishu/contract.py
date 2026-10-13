@@ -1,22 +1,7 @@
-"""飞书适配层（port / adapter）：流程与外部位（飞书）之间的接缝。
+"""流程能力层的契约：四个动作 + 流程用的数据类 + 负载映射。
 
-这个平台的核心定位就是**绑定飞书**，所以这里不是「平台无关的通用接口」，
-而是**显式的飞书适配层**——方法名直接对应飞书的操作
-（某个飞书邮箱文件夹、某张多维表格的「调研」表、某个飞书群）。
-
-取数与落盘规则都在资源层（``feishu/resources/``）；这里只做两件事：把流程的词汇
-（文件夹、候选人邮箱、群）翻成资源层的坐标，再把资源层的负载映射成流程的数据类。
-
-两类实现，二者都是飞书客户端，不是「两套平台」：
-
-  - ``mock`` ：进程内**测试替身**，读夹具目录，零外部 IO，用于确定性自测与断言。
-  - ``real`` ：**真飞书客户端**，子进程调 lark-cli（canonical 实现）。
-              PATH 前面放 ``packages/mock/bin`` 即离线走假 lark-cli；
-              放真 lark-cli 即打真飞书——同一份代码，两种活法。
-
-执行器（runner）只认 ``FeishuClient`` 这个契约，不认具体实现；换实现 = 换工厂，
-流程与执行器代码一行不动。但「飞书」是这个产品的本体：能力层隔离的是
-**飞书 API 的易变细节**（鉴权、命令、字段、限流），不是「飞书」这个概念本身。
+契约只认流程的词汇（文件夹、候选人邮箱、群）；平台词汇（命令、flag、folder id）
+活在资源层与它下面的后端里。
 """
 
 from __future__ import annotations
@@ -113,23 +98,3 @@ def to_survey(items: list[dict]) -> dict[str, SurveyRecord]:
             answers=answers,
         )
     return out
-
-def mock(fixtures_dir: str) -> FeishuClient:
-    """测试替身：资源层走夹具，读写都不碰外网，确定性、可断言。"""
-    from .client import Feishu
-    from .resources.mock import MockResources
-
-    return Feishu(MockResources(None, fixtures_dir))
-
-
-def real(*, mailbox: str = "me", attachments_dir: str = "", **ids) -> FeishuClient:
-    """真飞书客户端：资源层子进程调 lark-cli（canonical 实现）。
-
-    资源 id 由 ``mailbox`` 与 ``ids`` 给（缺省走环境变量），缺省值是占位符——
-    够 mock 用，打真飞书会明确报错，不会静默。
-    """
-    from .client import Feishu
-    from .resources.real import CLIResources
-
-    res = CLIResources(None, mailbox=None, **ids)
-    return Feishu(res, mailbox=mailbox or res.mailbox, attachments_dir=attachments_dir)

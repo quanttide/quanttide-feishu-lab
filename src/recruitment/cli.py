@@ -10,7 +10,7 @@ import argparse
 import os
 import sys
 
-from . import feishu as cap
+from feishu import mock as feishu_mock, real as feishu_real
 from . import flow as flow_mod
 from . import runner
 from . import state as st
@@ -23,7 +23,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("command", choices=["run", "status"])
     p.add_argument("--mock", action="store_true", help="走夹具（Python 层），不打真飞书")
     p.add_argument("--cli", action="store_true",
-                   help="子进程调 lark-cli（PATH 前面放 packages/mock/bin 即离线）")
+                   help="子进程调 lark-cli（PATH 前面放 packages/fake_lark_cli/bin 即离线）")
     p.add_argument("--fixtures", default=os.path.join(LAB_ROOT, "tests", "fixtures"))
     p.add_argument("--state", default=os.path.join(LAB_ROOT, "tests", "fixtures", "state", "recruitment.json"))
     p.add_argument("--flow", default=flow_mod.default_path(LAB_ROOT))
@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.mock == args.cli:              # 都没给，或都给了
         print("选一个：--mock 走夹具；--cli 走 lark-cli 子进程"
-              "（PATH 前面放 packages/mock/bin 即离线，放真 lark-cli 即打真飞书）。",
+              "（PATH 前面放 packages/fake_lark_cli/bin 即离线，放真 lark-cli 即打真飞书）。",
               file=sys.stderr)
         return 2
     try:
@@ -48,9 +48,9 @@ def main(argv: list[str] | None = None) -> int:
 def _execute(args: argparse.Namespace) -> int:
     flow = flow_mod.load(args.flow)
     if args.mock:
-        client = cap.mock(args.fixtures)
+        client = feishu_mock(args.fixtures)
     else:
-        client = cap.real(
+        client = feishu_real(
             mailbox=flow.collect.get("邮箱") or "me",
             attachments_dir=os.path.join(args.fixtures, "attachments"),
         )

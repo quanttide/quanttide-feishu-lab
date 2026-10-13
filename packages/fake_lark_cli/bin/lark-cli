@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# 假 lark-cli 入口：放进 PATH 最前面就遮蔽真 lark-cli——读 tests/fixtures/，不打真飞书。
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m fake_lark_cli.cli "$@"
