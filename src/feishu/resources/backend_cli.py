@@ -2,7 +2,7 @@
 
 同一份代码两种活法，差别只在 PATH：
 
-    PATH 前面放 packages/fake_lark_cli/bin  → 假 lark-cli，读 tests/fixtures/，离线
+    PATH 前面放 tests/fake_lark_cli/bin  → 假 lark-cli，读 tests/fixtures/，离线
     PATH 里是真 lark-cli           → 打真飞书
 
 命令只写在 ``ACTIONS`` 这张表里（动作 → 资源 / 固定命令段 / 参数名 / flag 与值的改写），
@@ -60,7 +60,7 @@ class CLIBackend:
             p = subprocess.run([self.lark_cli, *args], capture_output=True, text=True)
         except FileNotFoundError:
             raise RuntimeError(
-                f"找不到 {self.lark_cli}：PATH 里没有。离线自测先把 packages/fake_lark_cli/bin 放到 PATH 前面"
+                f"找不到 {self.lark_cli}：PATH 里没有。离线自测先把 tests/fake_lark_cli/bin 放到 PATH 前面"
             ) from None
         text = p.stdout if p.returncode == 0 else p.stderr
         payload = _extract_json(text)

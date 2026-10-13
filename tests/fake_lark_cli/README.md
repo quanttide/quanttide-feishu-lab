@@ -1,4 +1,4 @@
-# packages/fake_lark_cli — lark-cli 的 mock
+# tests/fake_lark_cli — lark-cli 的 mock
 
 假 `lark-cli`：读同一批 `tests/fixtures/`，按真 CLI 的信封回话，不打真飞书。
 
@@ -12,7 +12,7 @@
 | 真实能力 | **子进程调 `lark-cli`**（`feishu/resources/backend_cli.py`） | runner（`--cli`） | 已实现；真飞书侧 scope 未开通、要授权，仍打不通 |
 
 真实能力已经就是子进程调 `lark-cli`：把本包的 `bin/lark-cli` 顶到 PATH 最前面遮蔽真 CLI，
-它**一行不改**就能离线跑通——`scripts/smoke.py` 的 CLI 段逐项核对两层结果一致。
+它**一行不改**就能离线跑通——`tests/smoke.py` 的 CLI 段逐项核对两层结果一致。
 这也是 runner.md 判据「换实现不换流程」在本地兑现的地方。
 
 两层 mock 并存，读同一批 `tests/fixtures/`，不互相取代。
@@ -78,10 +78,10 @@
 
 ```bash
 # 遮蔽真 CLI（哪个先在 PATH 里，哪个说了算）
-PATH=$PWD/packages/fake_lark_cli/bin:$PATH lark-cli mail +triage --format json
+PATH=$PWD/tests/fake_lark_cli/bin:$PATH lark-cli mail +triage --format json
 
 # 自检：五条命令 + 错误面 + 信封，夹具拷到临时目录跑，不碰仓库
-PYTHONPATH=src python3 scripts/smoke.py
+PYTHONPATH=src python3 tests/smoke.py
 ```
 
 ## 已知差距（接真 CLI 时要处理）
@@ -102,4 +102,4 @@ PYTHONPATH=src python3 scripts/smoke.py
 
 - 不模拟网络延迟、分页上限、`truncations[]`
 - 不真发邮件、不写真表——写只落到 `tests/fixtures/outbox/`
-- 不被 import：runner 默认走 Python 层 mock；`--cli` 才经子进程走到本包，自检在 `scripts/smoke.py` 第 8 段（CLI 面）
+- 不被 import：runner 默认走 Python 层 mock；`--cli` 才经子进程走到本包，自检在 `tests/smoke.py` 第 8 段（CLI 面）

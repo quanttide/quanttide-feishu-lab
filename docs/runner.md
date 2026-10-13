@@ -67,7 +67,7 @@ YAML 里**不出现任何 lark-cli 命令**，只出现能力名。能力是流�
 
 **mock 就是这张表的第二列换成第三列**——换掉的是实现，不是流程。`--mock` 一开，同一份 YAML 用夹具跑；关掉，同一份 YAML 打真飞书。这也是为什么 YAML 里不能写命令：写了就没法换。
 
-mock 分两层，读同一批 `tests/fixtures/`，不互相取代：资源层后端二（`feishu/resources/backend_inprocess.py`）同进程跑假 `lark-cli`，给 runner 用；后端一（`feishu/resources/backend_cli.py`）子进程调 `lark-cli`，PATH 前面放 `packages/fake_lark_cli/bin` 就离线自测，代码一份不改，PATH 里是真 `lark-cli` 就打真飞书。能力层（`feishu/client.py`）只负责包一层，与换哪个后端无关。设计见 `packages/fake_lark_cli/README.md`。
+mock 分两层，读同一批 `tests/fixtures/`，不互相取代：资源层后端二（`feishu/resources/backend_inprocess.py`）同进程跑假 `lark-cli`，给 runner 用；后端一（`feishu/resources/backend_cli.py`）子进程调 `lark-cli`，PATH 前面放 `tests/fake_lark_cli/bin` 就离线自测，代码一份不改，PATH 里是真 `lark-cli` 就打真飞书。能力层（`feishu/client.py`）只负责包一层，与换哪个后端无关。设计见 `tests/fake_lark_cli/README.md`。
 
 ## 四、状态落在哪
 

@@ -1,6 +1,6 @@
 """夹具根、形状规则与读写——「假平台」的全部知识，一份。
 
-在 ``packages/fake_lark_cli/fake_lark_cli`` 里：
+在 ``tests/fake_lark_cli/fake_lark_cli`` 里：
 
 - **形状规则**：夹具记录 → 飞书负载的归一化、``list:<n>`` 切页、表记录的字段匹配
   （假 lark-cli 与资源层替身共用同一份）
@@ -11,7 +11,7 @@
     mail/<文件夹>.json     邮件：message_id / sender / recipient / subject / body / date / attachments
     attachments/<文件名>   附件原件
     group_members.json     群成员邮箱
-    im/ vc/ task/ drive/   会话、会议、任务、文档（见 packages/fake_lark_cli/README.md）
+    im/ vc/ task/ drive/   会话、会议、任务、文档（见 tests/fake_lark_cli/README.md）
     survey.json            调研表记录
     outbox/                发出去的邮件
 """
@@ -99,7 +99,7 @@ def folder_file(folder: str) -> str:
 
 def page_of(items: list, token: str | None, size: int) -> tuple[list, bool, str]:
     """游标切片：``list:<n>`` 表示从第 n 条起。真 CLI 的游标是服务端不透明串，
-    mock 只能用位置模拟——形状对齐、语义近似（见 packages/fake_lark_cli/README.md）。"""
+    mock 只能用位置模拟——形状对齐、语义近似（见 tests/fake_lark_cli/README.md）。"""
     start = 0
     if token:
         if not str(token).startswith("list:"):

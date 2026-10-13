@@ -6,7 +6,7 @@
 ```bash
 PYTHONPATH=src python3 examples/qtrecurit/run.py status --mock         # 看谁在哪一格
 PYTHONPATH=src python3 examples/qtrecurit/run.py run --mock --step     # 推一步
-PATH=$PWD/packages/fake_lark_cli/bin:$PATH PYTHONPATH=src \
+PATH=$PWD/tests/fake_lark_cli/bin:$PATH PYTHONPATH=src \
   python3 examples/qtrecurit/run.py status --cli                       # 子进程走假 CLI
 ```
 

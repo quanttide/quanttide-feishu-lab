@@ -4,7 +4,7 @@
     PYTHONPATH=src python3 examples/qtrecurit/run.py run --mock [--step]    # 推一轮
 
 ``--mock`` 走同进程的假 lark-cli（离线）；``--cli`` 走子进程调 lark-cli——
-PATH 前面放 ``packages/fake_lark_cli/bin`` 就是离线的假 CLI，放真 lark-cli 就打真飞书
+PATH 前面放 ``tests/fake_lark_cli/bin`` 就是离线的假 CLI，放真 lark-cli 就打真飞书
 （资源 id 由 ``LARK_CHAT_ID`` 等环境变量给）。两个都不给会明确报错。
 """
 

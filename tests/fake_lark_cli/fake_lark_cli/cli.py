@@ -304,7 +304,7 @@ lark-cli (mock) — 实验室假 lark-cli：读 tests/fixtures/，不打真飞�
   LARK_MOCK_FIXTURES     换夹具目录（smoke 用它指到临时目录）
 
 PATH 遮蔽真 CLI 的用法:
-  PATH=<实验室>/packages/fake_lark_cli/bin:$PATH lark-cli mail +triage --format json
+  PATH=<实验室>/tests/fake_lark_cli/bin:$PATH lark-cli mail +triage --format json
 """
 
 
@@ -385,13 +385,13 @@ def main(argv: list[str] | None = None) -> int:
         print(USAGE)
         return 0
     if argv[0] == "--version":
-        print("mock lark-cli (packages/fake_lark_cli)")
+        print("mock lark-cli (tests/fake_lark_cli)")
         return 0
 
     domain, rest = argv[0], argv[1:]
     if domain not in DOMAINS:
         usage_error(f"unknown domain: {domain}",
-                    hint=f"mock 实现了 {' / '.join(DOMAINS)} 域，见 packages/fake_lark_cli/README.md")
+                    hint=f"mock 实现了 {' / '.join(DOMAINS)} 域，见 tests/fake_lark_cli/README.md")
     if not rest:
         usage_error(f"missing command: lark-cli {domain} <command>",
                     hint=f"Run `lark-cli {domain} --help`")
@@ -402,7 +402,7 @@ def main(argv: list[str] | None = None) -> int:
     command, tail = _command_of(domain, rest)
     if command not in COMMANDS:
         usage_error(f"unknown command: {command}",
-                    hint="mock 实现的命令与夹具映射见 packages/fake_lark_cli/README.md")
+                    hint="mock 实现的命令与夹具映射见 tests/fake_lark_cli/README.md")
     if any(a in ("-h", "--help") for a in tail):
         print(HELP[command])
         return 0

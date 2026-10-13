@@ -2,8 +2,8 @@
 
 跑法（在实验室根目录）：
 
-    PYTHONPATH=src python3 scripts/smoke.py            # 两段都跑
-    PYTHONPATH=src python3 scripts/smoke.py --record   # 重新录制资源层负载快照
+    PYTHONPATH=src python3 tests/smoke.py            # 两段都跑
+    PYTHONPATH=src python3 tests/smoke.py --record   # 重新录制资源层负载快照
 
 三段判据，全部可跑：
 
@@ -37,7 +37,7 @@ from feishu.resources.backend_cli import CLIBackend  # noqa: E402
 from feishu.resources.store import RawStore  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
-MOCK_BIN = ROOT / "packages" / "fake_lark_cli" / "bin"
+MOCK_BIN = ROOT / "tests" / "fake_lark_cli" / "bin"
 PYTHON = ROOT / ".venv" / "bin" / "python"
 SNAPSHOT = FIXTURES / "snapshots" / "resources.json"
 FOLDERS = ["收件箱", "已发送问卷", "沟通面试中", "Spam"]     # 对齐 flows/recruitment.yaml 的收集节

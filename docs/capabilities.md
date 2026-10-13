@@ -1,7 +1,7 @@
 # 资源层：六资源十三动作（设计与契约）
 
 这一页定两件事：**能力清单**（飞书有哪些东西、按什么拿）与**落盘契约**（拿回来的东西怎么写下来）。
-判据全部可跑：`PYTHONPATH=src python3 scripts/smoke.py`（能力层 57 项 + 流程原型 18 项 + 假 CLI 的 CLI 面 14 项）。
+判据全部可跑：`PYTHONPATH=src python3 tests/smoke.py`（能力层 57 项 + 流程原型 18 项 + 假 CLI 的 CLI 面 14 项）。
 
 ## 一、为什么要单独一层
 
@@ -68,7 +68,7 @@
 | `LARK_TABLE_ID` | 表 | `mock-table-id` |
 | `LARK_CHAT_ID` | 群 | `oc_mock_chat` |
 
-判据：`scripts/smoke.py` 的资源层第 4 段直接 grep 源码——没有 `oc_/ou_/om_` 开头的具体 id、
+判据：`tests/smoke.py` 的资源层第 4 段直接 grep 源码——没有 `oc_/ou_/om_` 开头的具体 id、
 没有邮箱字面量，才通过。
 
 ## 五、两个后端
@@ -77,10 +77,10 @@
 | :-- | :-- | :-- |
 | `resources/backend_inprocess.py` | 同进程跑假 `lark-cli`（不 fork、不依赖 PATH） | 流程原型 `--mock`：确定性自测与断言 |
 | 流程能力层（`feishu/client.py`） | 包一个资源层客户端（夹具 / lark-cli 皆可） | 上面的 `mock()` / `real()` 工厂 |
-| `resources/backend_cli.py` | 子进程调 `lark-cli` | `PATH` 前面放 `packages/fake_lark_cli/bin` 即离线；放真 CLI 即打真飞书 |
+| `resources/backend_cli.py` | 子进程调 `lark-cli` | `PATH` 前面放 `tests/fake_lark_cli/bin` 即离线；放真 CLI 即打真飞书 |
 
 负载对着**录制快照**（`tests/fixtures/snapshots/resources.json`）比，两条路都要对上；改坏形状就红。
-重新录制：`PYTHONPATH=src python3 scripts/smoke.py --record`。
+重新录制：`PYTHONPATH=src python3 tests/smoke.py --record`。
 
 ## 六、不做什么
 
