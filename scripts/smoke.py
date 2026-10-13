@@ -9,9 +9,9 @@
 
 1. **资源层**：六资源十三动作取得到东西；负载与录制快照（``tests/fixtures/snapshots/resources.json``）
    一致——同进程假 CLI 与子进程假 CLI 两条路都要对上；落盘契约成立；源码里没有具体值。
-2. **流程能力层**：夹具撑得起招聘最小闭环——六位虚构候选人落在投递 / 二维码已发 / 已进群三格，
-   其中两位分别躺在 Spam 与被移走的文件夹里（两处卡点）；换成子进程假 CLI 结果一致。
-3. **假 lark-cli 的 CLI 面**：经 PATH 遮蔽调它，核信封、退出码、翻页、``--jq`` / ``--dry-run``。
+2. **能力层**：四个动作取得到东西（漂移与 Spam 两处卡点也算得出来）；换成子进程后端结果一致。
+3. **示例 `examples/qtrecurit`**：流程写成 YAML，端到端跑通（重建状态、推一步、缺凭据明确报错）。
+4. **假 lark-cli 的 CLI 面**：经 PATH 遮蔽调它，核信封、退出码、翻页、``--jq`` / ``--dry-run``。
 
 落盘写在临时目录，跑完即删，不碰仓库。
 """
@@ -38,6 +38,7 @@ from feishu.resources.store import RawStore  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures"
 MOCK_BIN = ROOT / "packages" / "fake_lark_cli" / "bin"
+PYTHON = ROOT / ".venv" / "bin" / "python"
 SNAPSHOT = FIXTURES / "snapshots" / "resources.json"
 FOLDERS = ["收件箱", "已发送问卷", "沟通面试中", "Spam"]     # 对齐 flows/recruitment.yaml 的收集节
 
@@ -138,10 +139,10 @@ def smoke_resources(store_dir: Path) -> None:
               f"{hard_id and hard_id.group(0)} {hard_mail and hard_mail.group(0)}")
 
 
-def smoke_flow() -> None:
-    """流程能力层：夹具撑不撑得起最小闭环 + 换实现不换结果。"""
+def smoke_capability_layer() -> None:
+    """能力层：四个动作取得到东西（含漂移与 Spam 两处卡点）+ 换成子进程后端结果一致。"""
     c = cap.mock(str(FIXTURES))
-    print("\n── 5. 流程能力层：读邮件（按文件夹，带游标）")
+    print("\n── 5. 能力层：读邮件（按文件夹，带游标）")
     applications: dict[str, str] = {}
     drift: list[str] = []
     spammy: list[str] = []
@@ -158,6 +159,7 @@ def smoke_flow() -> None:
                 drift.append(m.sender.lower())
             elif folder == "Spam":
                 spammy.append(m.sender.lower())
+    check(f"漂移（只出现在沟通面试中）：{drift}；误判（在 Spam）：{spammy}", bool(drift) and bool(spammy))
 
     people = sorted(set(list(applications) + drift + spammy))
     records, members = c.read_survey(people), c.read_group_members()
@@ -168,30 +170,48 @@ def smoke_flow() -> None:
           bool(records) and bool(members) and bool(mid))
 
     cli_cap = cap.real(attachments_dir=str(FIXTURES / "attachments"))
-    print("\n── 6. 流程能力层：换成子进程假 CLI，结果一致")
+    print("\n── 6. 能力层：换成子进程后端，结果一致")
     for folder in FOLDERS:
         check(f"read_mail({folder})", c.read_mail(folder) == cli_cap.read_mail(folder))
     check("read_survey", records == cli_cap.read_survey(people))
     check("read_group_members", members == cli_cap.read_group_members())
     check("send_mail", mid == cli_cap.send_mail(qr_to, qr_subject, qr_body, qr_attach))
 
-    print("\n── 7. 每人现在在哪一格（runner 的活儿，这里先手推一遍）")
-    expect = {
-        "chenmo@example.com": "二维码已发",
-        "linyizhou@example.com": "投递",
-        "suxiao@example.com": "投递",
-        "herui@example.com": "已进群",
-        "zhouyan@example.com": "投递（在 Spam 里，要先捞回）",
-        "zhengnan@example.com": "投递（被移出收件箱，靠补拉找回）",
-    }
-    for email in people:
-        state = "已进群" if email in members else ("二维码已发" if email == qr_to else "投递")
-        if email in spammy:
-            state += "（在 Spam 里，要先捞回）"
-        if email in drift:
-            state += "（被移出收件箱，靠补拉找回）"
-        want = expect.get(email, "?")
-        check(f"{email:26s} {state}", state.startswith(want), f"期望 {want}")
+
+def smoke_example() -> None:
+    """示例 examples/qtrecurit：流程写成数据、一轮一跑，端到端跑通。
+
+    状态文件指向临时目录——不然上一轮跑出来的状态会让这一轮的结果不一样。
+    """
+    print("\n── 7. 示例 examples/qtrecurit（流程 = YAML，执行器读它推格）")
+    py = PYTHON if PYTHON.exists() else Path(sys.executable)     # 示例要 pyyaml
+    state = Path(tempfile.mkdtemp(prefix="feishu-example-")) / "recruitment.json"
+
+    def run_example(env: dict, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([str(py), str(ROOT / "examples/qtrecurit/run.py"),
+                               *args, "--state", str(state)],
+                              capture_output=True, text=True, env=env, cwd=str(ROOT))
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT / "src")
+    status = run_example(env, "status", "--mock")
+    states = dict(re.findall(r"(\S+@\S+)\s+(\S+?)（", status.stdout))
+    check("status --mock：从飞书侧重建（进人只看收件箱，四人在册）",
+          len(states) == 4 and all("无响应" not in v for v in states.values()), status.stdout)
+    check("重建出来的格子：投递 3 人 + 已进群 1 人",
+          sorted(states.values()) == ["已进群", "投递", "投递", "投递"], str(states))
+
+    step = run_example(env, "run", "--mock", "--step")
+    check("run --mock --step：只推一步（一条 ✓）",
+          step.stdout.count("✓") == 1, step.stdout + step.stderr)
+    after = dict(re.findall(r"(\S+@\S+)\s+(\S+?)（", run_example(env, "status", "--mock").stdout))
+    check("推完这一步后状态落盘：有一人格子变了",
+          after != states and sum(1 for k in after if after[k] != states.get(k)) == 1,
+          f"{states} → {after}")
+
+    bad = run_example(env, "status")
+    check("既不给 --mock 也不给 --cli：明确报错、不偷偷打出去",
+          bad.returncode != 0 and "--mock" in (bad.stdout + bad.stderr), bad.stdout + bad.stderr)
 
 
 def smoke_cli_surface() -> None:
@@ -278,7 +298,8 @@ def main() -> int:
     try:
         smoke_resources(store_dir)
         if "--record" not in sys.argv:
-            smoke_flow()
+            smoke_capability_layer()
+            smoke_example()
             smoke_cli_surface()
         print(f"\n通过 {PASS}，失败 {FAIL}")
         return 0 if FAIL == 0 else 1

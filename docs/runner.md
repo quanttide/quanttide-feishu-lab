@@ -1,12 +1,12 @@
 # 招聘流程调度器（设计）
 
-围绕 `tests/fixtures/flows/recruitment.yaml` 与本地已装的 `lark-cli`，做一个读 YAML、按状态机推进流程的程序，代替 `qtrecurit-cli` 里那些写死的命令。实验室验证时走 mock。
+围绕 `examples/qtrecurit/recruitment.yaml` 与本地已装的 `lark-cli`，做一个读 YAML、按状态机推进流程的程序（落在 `examples/qtrecurit/`，是能力层的用法示例），代替 `qtrecurit-cli` 里那些写死的命令。实验室验证时走 mock。
 
 ## 一、要解决的问题
 
 `qtrecurit-cli` 把招聘流程的每一步写成了一个命令（同步邮箱、发问卷、发邀请、发考试），每个命令里硬编码了邮箱、文件夹、表列、模板。**流程等于命令的排列组合**——要调流程就得改代码。
 
-现在流程已经写成了数据（`tests/fixtures/flows/recruitment.yaml`），差一个**执行器**：它读那份 YAML，把「什么事件发生 → 做哪一步 → 怎么算过」跑起来。跑通之后，调流程就是改 YAML。
+现在流程已经写成了数据（`examples/qtrecurit/recruitment.yaml`），差一个**执行器**：它读那份 YAML，把「什么事件发生 → 做哪一步 → 怎么算过」跑起来。跑通之后，调流程就是改 YAML。
 
 ## 二、第一道关口：触发要从「话」变成「条件」
 
@@ -125,4 +125,4 @@ recruitment run --mock --fixtures tests/fixtures/   # 实验室：走夹具
 2. 写 mock 能力 + 夹具（三五个虚构候选人，覆盖投递 / 二维码已发 / 已进群三格）。
 3. 写 runner 骨架：读 YAML、建状态机、`--step` 推一步、状态落盘。
 4. 真对接：子进程后端已就绪（`feishu/resources/backend_cli.py`），给真 base-token / table-id / chat-id 与权限，对着真邮箱与真表跑一轮，核第三条判据。
-5. 之后再谈把 runner 固化到哪一层——它是原型，不是产品。
+5. 之后再谈把执行器固化到哪一层——它是示例，不是产品；真要用，固化的位置是正式平台。
