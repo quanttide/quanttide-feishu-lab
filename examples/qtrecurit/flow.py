@@ -125,21 +125,14 @@ def context_of(flow: Flow, engine_context: dict | None = None) -> dict:
 
 
 def derive(engine, flow: Flow, context: dict, today: str | None = None) -> dict:
-    """从飞书侧重建每人现在在哪一格：进人只看收件箱，群成员只用来升级状态。
-
-    「进人」与「群成员」各用哪条定义写在流程的收集节里——定义名是流程的话，
-    执行器只照着调，不自己认名字。
-    """
+    """从飞书侧重建每人现在在哪一格：进人只看收件箱，群成员只用来升级状态。"""
     today = today or date.today().isoformat()
-    entry, member_def = flow.collect.get("进人"), flow.collect.get("群成员")
-    if not entry or not member_def:
-        raise RuntimeError("流程的收集节要写「进人」与「群成员」各用哪条定义")
-    members = {str(r.get("邮箱") or "").lower() for r in engine.call(member_def, **context).rows}
+    members = {str(r.get("邮箱") or "").lower() for r in engine.call("看谁进群了", **context).rows}
     applied: dict[str, str] = {}
     for folder in (flow.collect.get("范围") or []):
         if folder != "收件箱":
             continue                    # 漂移 / Spam 是补拉范围，进人仍以收件箱为准
-        out = engine.call(entry, 文件夹=folder, **context)
+        out = engine.call("读投递邮件", 文件夹=folder, **context)
         for row in out.rows:
             who = str(row.get("发件人") or "").lower()
             if who and "@" in who:
