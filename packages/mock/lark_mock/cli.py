@@ -111,8 +111,8 @@ COMMANDS: dict[str, Command] = {
             "to": Flag("str", None, "收件人，必填"), "subject": Flag("str", None, "主题，必填"),
             "body": Flag("str", None, "正文（或用 --body-file）"),
             "body-file": Flag("str", None, "从文件读正文，与 --body 互斥"),
-            "attach": Flag("str", None, "附件路径，逗号分隔（mock 只记文件名）"), "from": Flag("str", None, "发件地址"),
-            "mailbox": Flag("str", None, "邮箱"),
+            "attach": Flag("str", None, "附件路径，逗号分隔（mock 只记文件名）"),
+            "from": Flag("str", None, "发件地址"), "mailbox": Flag("str", None, "邮箱"),
             "confirm-send": Flag("bool", False, "真发（写 outbox）；不给是草稿模式"),
             "no-signature": Flag("bool", False, "不带签名"), "format": Flag("str", "json", "json"),
 
@@ -159,7 +159,8 @@ COMMANDS: dict[str, Command] = {
         im_mod.chat_members_list,
         _flags(**{
 
-            "chat-id": Flag("str", None, "必填"), "member-types": Flag("str", None, "user,bot（默认全要）"),
+            "chat-id": Flag("str", None, "必填"),
+            "member-types": Flag("str", None, "user,bot（默认全要）"),
             "member-id-type": Flag("str", "open_id", "id 类型"),
             "page-all": Flag("bool", False, "一次拉完"), "page-size": Flag("int", 20, "每页条数"),
             "page-token": Flag("str", None, "翻页游标"),
@@ -189,11 +190,11 @@ COMMANDS: dict[str, Command] = {
         im_mod.messages_search,
         _flags(**{
 
-            "sender": Flag("str", None, "某人发出的消息"), "at-chatter-ids": Flag("str", None, "被 @ 到的消息"),
-            "chat-id": Flag("str", None, "限定会话"), "page-all": Flag("bool", False, "一次拉完"),
-            "page-limit": Flag("int", None, "翻页上限"), "page-size": Flag("int", 50, "每页条数"),
-            "page-token": Flag("str", None, "翻页游标"), "no-reactions": Flag("bool", False, "去掉表情回复"),
-            "format": Flag("str", "json", "json"),
+            "sender": Flag("str", None, "某人发出的消息"),
+            "at-chatter-ids": Flag("str", None, "被 @ 到的消息"), "chat-id": Flag("str", None, "限定会话"),
+            "page-all": Flag("bool", False, "一次拉完"), "page-limit": Flag("int", None, "翻页上限"),
+            "page-size": Flag("int", 50, "每页条数"), "page-token": Flag("str", None, "翻页游标"),
+            "no-reactions": Flag("bool", False, "去掉表情回复"), "format": Flag("str", "json", "json"),
 
         }),
         "mock 读 tests/fixtures/im/search-sender-<id>.json / search-at-<id>.json。",

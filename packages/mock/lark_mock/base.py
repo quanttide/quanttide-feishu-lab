@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import fixtures, shapes
+from . import fixtures
 from .envelope import Result, usage_error
 
 
@@ -59,11 +59,11 @@ def record_list(flags: dict) -> Result:
             usage_error(f"mock 只支持 logic=and，不支持 {logic!r}", param="--filter-json")
         conditions = spec.get("conditions") or []
 
-    keep = [shapes.TABLE_ALIASES.get(f, f) for f in flags.get("field-id") or []]
+    keep = [fixtures.TABLE_ALIASES.get(f, f) for f in flags.get("field-id") or []]
 
     items = []
     for i, rec in enumerate(records):
-        if not shapes.match_record(rec, conditions):
+        if not fixtures.match_record(rec, conditions):
             continue
         fields = {k: v for k, v in rec.items() if k in keep} if keep else dict(rec)
         items.append({"record_id": f"rec-{i + 1:04d}", "fields": fields})

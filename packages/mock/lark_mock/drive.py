@@ -11,7 +11,7 @@
 
 from __future__ import annotations
 
-from . import fixtures, shapes
+from . import fixtures
 from .envelope import Result, usage_error
 
 
@@ -23,7 +23,7 @@ def search(flags: dict) -> Result:
     payload = fixtures.read_json("drive", "search.json")
     items = [i for i in payload.get("items") or []
              if (i.get("edited_time") or "") >= since or (i.get("created_time") or "") >= since]
-    page, has_more, token = shapes.page_of(items, flags.get("page-token"),
+    page, has_more, token = fixtures.page_of(items, flags.get("page-token"),
                                              flags.get("page-size") or 20)
     data = {"items": page, "has_more": has_more, "page_token": token}
     lines = ["token\tname\tedited_time"]

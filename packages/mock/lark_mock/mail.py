@@ -13,7 +13,7 @@ import json
 import os
 from datetime import datetime
 
-from . import fixtures, shapes
+from . import fixtures
 from .envelope import Result, usage_error
 
 
@@ -53,7 +53,7 @@ def triage(flags: dict) -> Result:
                              + m.get("body", "")).lower()]
 
     limit = flags.get("page-size") or flags.get("max") or 20
-    page, has_more, next_token = shapes.page_of(msgs, flags.get("page-token"), limit)
+    page, has_more, next_token = fixtures.page_of(msgs, flags.get("page-token"), limit)
 
     mailbox = flags.get("mailbox") or "me"
     items = [
@@ -86,8 +86,8 @@ def triage(flags: dict) -> Result:
 
 
 def _normalize(rec: dict, message_id: str, want_html: bool) -> dict:
-    """夹具记录 → +message 归一化字段（规则在 shapes.py，一份）。"""
-    return shapes.normalize_mail(rec, message_id, want_html)
+    """夹具记录 → +message 归一化字段（规则在 fixtures.py，一份）。"""
+    return fixtures.normalize_mail(rec, message_id, want_html)
 
 
 def messages(flags: dict) -> Result:
