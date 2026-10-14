@@ -39,6 +39,13 @@
   由 `mock_backend()` / `real_backend()` 交给串联器
 - 测试设施收进 `tests/`：夹具、假 `lark-cli`、冒烟
 
+### Removed
+
+- 收为骨架：删除与平台仓 `apps/qtcloud-feishu`（`src/cli/`）功能重复的全部实现——
+  `src/feishu/`（基础单元、串联器）、`examples/qtrecurit/`（流程、定义、执行器）、
+  `tests/`（假 lark-cli、夹具、冒烟）、`docs/`（能力清单、场景设计）。功能正本在平台仓，
+  本仓只留包骨架与 README，方便后续继续迭代
+
 ## [0.0.1] - 2026-10-11
 
 初始版本。
